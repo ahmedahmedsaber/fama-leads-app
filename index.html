@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Fama Leads</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#014AAD">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fama Leads">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<link rel="icon" href="icons/favicon-32.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#014AAD; --bg:#EEF4FA; --card:#fff; --border:#E1EBF4;
+  --ink:#0f1b2e; --muted:#66768c; --muted2:#9aabb8;
+  --green:#1fa872; --green-bg:#e5f7ee;
+  --red:#e5484d; --red-bg:#fdecec;
+  --amber:#c47a1f; --amber-bg:#fdf3e2;
+  --blue-bg:#e8f0fb;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:'Hanken Grotesk',system-ui,-apple-system,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;}
+button,input,textarea,select{font-family:inherit;}
+input,textarea{font-size:16px;} /* prevent iOS auto-zoom */
+
+#app{position:fixed;inset:0;display:flex;flex-direction:column;}
+
+/* TOPBAR */
+.topbar{flex:0 0 auto;padding:calc(var(--safe-t) + 12px) 18px 10px;background:var(--navy);color:#fff;}
+.topbar-row{display:flex;align-items:center;justify-content:space-between;}
+.topbar-title{font-size:21px;font-weight:800;letter-spacing:-.02em;}
+.topbar-count{font-size:12px;color:rgba(255,255,255,.65);font-weight:600;margin-top:1px;}
+.searchbar{margin-top:12px;position:relative;}
+.searchbar input{width:100%;padding:10px 14px;border-radius:11px;border:none;background:rgba(255,255,255,.16);color:#fff;font-size:15px;outline:none;}
+.searchbar input::placeholder{color:rgba(255,255,255,.6);}
+.chiprow{display:flex;gap:7px;margin-top:11px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;}
+.chiprow::-webkit-scrollbar{display:none;}
+.fchip{flex:0 0 auto;padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:700;background:rgba(255,255,255,.12);color:rgba(255,255,255,.75);border:none;white-space:nowrap;}
+.fchip.active{background:#fff;color:var(--navy);}
+
+/* VIEWS */
+.view{display:none;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.view.active{display:block;}
+
+/* LEAD LIST */
+.leadlist{padding:12px 14px calc(90px + var(--safe-b));}
+.leadcard{background:var(--card);border-radius:15px;padding:13px 14px;margin-bottom:9px;box-shadow:0 1px 3px rgba(15,27,46,.06);display:flex;align-items:center;gap:11px;}
+.leadcard:active{background:#f5f9fd;}
+.leadcard-main{flex:1;min-width:0;}
+.leadcard-brand{font-size:15.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.leadcard-sub{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.leadcard-right{flex:0 0 auto;text-align:right;}
+.badge{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;}
+.badge-new{background:var(--blue-bg);color:var(--navy);}
+.badge-progress{background:var(--amber-bg);color:var(--amber);}
+.badge-dm{background:var(--green-bg);color:var(--green);}
+.badge-dead{background:#eee;color:#8a99a8;}
+.leadcard-days{font-size:10.5px;color:var(--muted2);margin-top:5px;}
+.empty-state{text-align:center;padding:70px 30px;color:var(--muted);}
+.empty-state-emoji{font-size:44px;margin-bottom:10px;}
+.empty-state-title{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:6px;}
+.empty-state-body{font-size:13.5px;line-height:1.6;}
+
+/* FAB */
+.fab{position:fixed;right:20px;bottom:calc(78px + var(--safe-b));width:58px;height:58px;border-radius:50%;background:var(--navy);color:#fff;border:none;font-size:28px;font-weight:400;box-shadow:0 8px 20px rgba(1,74,173,.4);display:grid;place-items:center;z-index:50;}
+.fab:active{transform:scale(.94);}
+
+/* TAB BAR */
+.tabbar{flex:0 0 auto;display:flex;background:#fff;border-top:1px solid var(--border);padding:6px 0 calc(6px + var(--safe-b));position:relative;z-index:40;}
+.tabbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;padding:6px 0;color:var(--muted2);}
+.tabbtn.active{color:var(--navy);}
+.tabbtn .ic{font-size:20px;line-height:1;}
+.tabbtn .lb{font-size:10px;font-weight:700;}
+
+/* SCREEN OVERLAY (lead detail, full screen push) */
+.screen{position:fixed;inset:0;background:var(--bg);z-index:100;display:none;flex-direction:column;transform:translateX(100%);transition:transform .28s cubic-bezier(.32,.72,0,1);}
+.screen.open{display:flex;transform:translateX(0);}
+.screen-header{flex:0 0 auto;background:var(--navy);color:#fff;padding:calc(var(--safe-t) + 10px) 14px 14px;display:flex;align-items:center;gap:10px;}
+.iconbtn{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.14);border:none;color:#fff;font-size:17px;display:grid;place-items:center;flex:0 0 34px;}
+.screen-header-title{flex:1;min-width:0;}
+.screen-header-brand{font-size:17px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.screen-header-sub{font-size:11.5px;color:rgba(255,255,255,.6);margin-top:1px;}
+.screen-body{flex:1;overflow-y:auto;padding:14px 16px calc(30px + var(--safe-b));-webkit-overflow-scrolling:touch;}
+
+/* CURRENT CONTACT CARD */
+.curcard{background:#fff;border-radius:18px;padding:18px;box-shadow:0 2px 10px rgba(15,27,46,.08);}
+.curcard-label{font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2);margin-bottom:8px;}
+.curcard-role{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--blue-bg);color:var(--navy);margin-bottom:6px;}
+.curcard-name{font-size:19px;font-weight:800;}
+.curcard-phone{display:block;font-size:24px;font-weight:800;color:var(--navy);text-decoration:none;margin-top:4px;}
+.curcard-actions{display:flex;gap:9px;margin-top:14px;}
+.pillbtn{flex:1;padding:11px;border-radius:12px;border:none;font-size:13.5px;font-weight:800;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;}
+.pillbtn-call{background:var(--navy);color:#fff;}
+.pillbtn-wa{background:var(--green-bg);color:var(--green);}
+.logbtn{display:block;width:100%;margin-top:16px;padding:14px;border-radius:13px;border:none;background:var(--ink);color:#fff;font-size:14.5px;font-weight:800;}
+
+.resolved-card{background:var(--green-bg);border-radius:18px;padding:18px;text-align:center;}
+.resolved-card .big{font-size:30px;margin-bottom:6px;}
+.resolved-card .t{font-weight:800;color:var(--green);font-size:15px;}
+.deadcard{background:#f3f3f3;border-radius:18px;padding:16px;text-align:center;color:var(--muted);font-size:13.5px;}
+
+.section-label{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin:20px 0 9px;}
+.timeline{display:flex;flex-direction:column;gap:0;}
+.tl-item{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--border);}
+.tl-item:last-child{border-bottom:none;}
+.tl-dot{width:9px;height:9px;border-radius:50%;background:var(--muted2);flex:0 0 9px;margin-top:6px;}
+.tl-name{font-size:13.5px;font-weight:700;}
+.tl-role{font-size:11.5px;color:var(--muted);}
+.tl-outcome{font-size:11px;font-weight:700;margin-top:3px;display:inline-block;padding:2px 8px;border-radius:999px;}
+.tl-phone{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+.fg{margin-bottom:14px;}
+.fl{display:block;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
+.fi{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:11px;background:#fff;outline:none;color:var(--ink);}
+.fi:focus{border-color:var(--navy);}
+textarea.fi{min-height:70px;resize:vertical;}
+.rowbtns{display:flex;gap:10px;}
+.rowbtns .fg{flex:1;}
+
+.miniaction{display:flex;gap:9px;margin-top:18px;}
+.miniaction button{flex:1;padding:11px;border-radius:11px;border:1.5px solid var(--border);background:#fff;font-size:12.5px;font-weight:700;color:var(--muted);}
+.miniaction button.danger{color:var(--red);border-color:#f5c6c7;}
+.miniaction button.revive{color:var(--green);border-color:#bfe6d3;}
+
+/* BOTTOM SHEETS */
+.sheet-scrim{position:fixed;inset:0;background:rgba(15,27,46,.4);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;}
+.sheet-scrim.open{opacity:1;pointer-events:all;}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;z-index:210;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);max-height:88vh;display:flex;flex-direction:column;}
+.sheet.open{transform:translateY(0);}
+.sheet-handle{width:36px;height:4px;background:#e1e8f0;border-radius:99px;margin:10px auto 4px;}
+.sheet-title{font-size:17px;font-weight:800;padding:8px 20px 4px;}
+.sheet-body{padding:6px 20px calc(24px + var(--safe-b));overflow-y:auto;}
+.sheet-save{display:block;width:100%;padding:14px;border-radius:13px;border:none;background:var(--navy);color:#fff;font-size:15px;font-weight:800;margin-top:6px;}
+.sheet-cancel{display:block;width:100%;padding:12px;border-radius:13px;border:none;background:none;color:var(--muted);font-size:13.5px;font-weight:700;text-align:center;}
+
+.outcomelist{display:flex;flex-direction:column;gap:8px;}
+.ocbtn{display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:14px;border:1.5px solid var(--border);background:#fff;text-align:left;font-size:14.5px;font-weight:700;color:var(--ink);}
+.ocbtn .ic{font-size:20px;flex:0 0 24px;}
+.ocbtn.ok{border-color:#bfe6d3;background:var(--green-bg);}
+.ocbtn.warn{border-color:#f0dab3;background:var(--amber-bg);}
+.ocbtn.bad{border-color:#f5c6c7;background:var(--red-bg);}
+
+/* STATS */
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;padding:16px 14px calc(90px + var(--safe-b));}
+.stattile{background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(15,27,46,.06);}
+.stattile-label{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+.stattile-val{font-size:27px;font-weight:800;color:var(--navy);margin-top:5px;letter-spacing:-.02em;}
+.stattile-sub{font-size:11px;color:var(--muted2);margin-top:2px;}
+.stattile.wide{grid-column:span 2;}
+
+/* SETTINGS */
+.settingswrap{padding:16px 16px calc(90px + var(--safe-b));}
+.setcard{background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(15,27,46,.06);}
+.setcard-title{font-size:14px;font-weight:800;margin-bottom:4px;}
+.setcard-body{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:12px;}
+.setbtn{display:block;width:100%;padding:12px;border-radius:12px;border:none;font-size:13.5px;font-weight:800;text-align:center;margin-bottom:8px;}
+.setbtn:last-child{margin-bottom:0;}
+.setbtn-primary{background:var(--navy);color:#fff;}
+.setbtn-ghost{background:var(--blue-bg);color:var(--navy);}
+.setbtn-danger{background:var(--red-bg);color:var(--red);}
+.backup-warn{background:var(--amber-bg);color:#8a5a10;border-radius:12px;padding:11px 13px;font-size:12px;font-weight:600;margin-bottom:12px;}
+.backup-ok{background:var(--green-bg);color:var(--green);border-radius:12px;padding:11px 13px;font-size:12px;font-weight:600;margin-bottom:12px;}
+input[type=file]{display:none;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar" id="topbar">
+    <div class="topbar-row">
+      <div>
+        <div class="topbar-title">Fama Leads</div>
+        <div class="topbar-count" id="leadCount">0 leads</div>
+      </div>
+    </div>
+    <div class="searchbar"><input id="searchInput" placeholder="Search brand or name…" oninput="renderLeadList()"></div>
+    <div class="chiprow" id="filterChips"></div>
+  </div>
+
+  <div class="view active" id="view-leads">
+    <div class="leadlist" id="leadListWrap"></div>
+  </div>
+
+  <div class="view" id="view-stats">
+    <div class="statgrid" id="statGrid"></div>
+  </div>
+
+  <div class="view" id="view-settings">
+    <div class="settingswrap" id="settingsWrap"></div>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tabbtn active" data-view="leads" onclick="switchView('leads')"><span class="ic">🏠</span><span class="lb">Leads</span></button>
+    <button class="tabbtn" data-view="stats" onclick="switchView('stats')"><span class="ic">📊</span><span class="lb">Stats</span></button>
+    <button class="tabbtn" data-view="settings" onclick="switchView('settings')"><span class="ic">⚙️</span><span class="lb">Backup</span></button>
+  </nav>
+
+  <button class="fab" id="fabAdd" onclick="openAddLead()">+</button>
+</div>
+
+<!-- LEAD DETAIL SCREEN -->
+<div class="screen" id="leadDetailScreen">
+  <div class="screen-header">
+    <button class="iconbtn" onclick="closeLeadDetail()">←</button>
+    <div class="screen-header-title">
+      <div class="screen-header-brand" id="ldBrand"></div>
+      <div class="screen-header-sub" id="ldSub"></div>
+    </div>
+    <button class="iconbtn" onclick="openEditLead()">✎</button>
+  </div>
+  <div class="screen-body" id="ldBody"></div>
+</div>
+
+<!-- ADD LEAD SHEET -->
+<div class="sheet-scrim" id="addLeadScrim" onclick="closeAddLead()"></div>
+<div class="sheet" id="addLeadSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">New Lead</div>
+  <div class="sheet-body">
+    <div class="fg"><label class="fl">Brand Name *</label><input class="fi" id="alBrand" placeholder="e.g. Buffalo Burger Almaza"></div>
+    <div class="fg"><label class="fl">Gatekeeper Name</label><input class="fi" id="alName" placeholder="e.g. Ahmed Ali"></div>
+    <div class="rowbtns">
+      <div class="fg"><label class="fl">Phone</label><input class="fi" id="alPhone" type="tel" placeholder="01xxxxxxxxx"></div>
+      <div class="fg"><label class="fl">Role</label><input class="fi" id="alRole" placeholder="HR Manager"></div>
+    </div>
+    <div class="fg"><label class="fl">Area (optional)</label><input class="fi" id="alArea" placeholder="e.g. Almaza"></div>
+    <button class="sheet-save" onclick="submitAddLead()">Save Lead</button>
+    <button class="sheet-cancel" onclick="closeAddLead()">Cancel</button>
+  </div>
+</div>
+
+<!-- EDIT LEAD SHEET -->
+<div class="sheet-scrim" id="editLeadScrim" onclick="closeEditLead()"></div>
+<div class="sheet" id="editLeadSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Edit Lead</div>
+  <div class="sheet-body">
+    <div class="fg"><label class="fl">Brand Name</label><input class="fi" id="elBrand"></div>
+    <div class="fg"><label class="fl">Area</label><input class="fi" id="elArea"></div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="elNotes"></textarea></div>
+    <button class="sheet-save" onclick="submitEditLead()">Save Changes</button>
+    <button class="sheet-cancel" onclick="closeEditLead()">Cancel</button>
+  </div>
+</div>
+
+<!-- OUTCOME SHEET -->
+<div class="sheet-scrim" id="outcomeScrim" onclick="closeOutcomeSheet()"></div>
+<div class="sheet" id="outcomeSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Log Call Outcome</div>
+  <div class="sheet-body">
+    <div class="outcomelist">
+      <button class="ocbtn ok" onclick="logOutcome('reached_dm')"><span class="ic">✅</span> Reached Marketing Manager</button>
+      <button class="ocbtn warn" onclick="logOutcome('referred')"><span class="ic">↪️</span> Referred to Someone Else</button>
+      <button class="ocbtn warn" onclick="logOutcome('callback')"><span class="ic">🔁</span> Asked to Call Back Later</button>
+      <button class="ocbtn" onclick="logOutcome('no_answer')"><span class="ic">📵</span> No Answer</button>
+      <button class="ocbtn" onclick="logOutcome('wrong_number')"><span class="ic">☎️</span> Wrong Number</button>
+      <button class="ocbtn bad" onclick="logOutcome('refused')"><span class="ic">🚫</span> Refused / Not Interested</button>
+    </div>
+    <button class="sheet-cancel" onclick="closeOutcomeSheet()">Cancel</button>
+  </div>
+</div>
+
+<!-- NEXT CONTACT SHEET -->
+<div class="sheet-scrim" id="nextScrim" onclick="closeNextContact()"></div>
+<div class="sheet" id="nextContactSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Who Did They Refer You To?</div>
+  <div class="sheet-body">
+    <div class="fg"><label class="fl">Name</label><input class="fi" id="ncName" placeholder="e.g. Samir Abdelwahab"></div>
+    <div class="rowbtns">
+      <div class="fg"><label class="fl">Phone</label><input class="fi" id="ncPhone" type="tel" placeholder="01xxxxxxxxx"></div>
+      <div class="fg"><label class="fl">Role</label><input class="fi" id="ncRole" placeholder="Branch Manager"></div>
+    </div>
+    <button class="sheet-save" onclick="submitNextContact()">Add & Continue</button>
+    <button class="sheet-cancel" onclick="closeNextContact()">I Don't Have Their Info Yet</button>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept="application/json">
+
+<script>
+// ───────────────────────────── STORAGE ─────────────────────────────
+const STORE_KEY = 'fama_leads_v1';
+let data = { leads: [], lastBackupAt: null };
+
+function load(){
+  try { data = JSON.parse(localStorage.getItem(STORE_KEY)) || { leads: [], lastBackupAt: null }; }
+  catch { data = { leads: [], lastBackupAt: null }; }
+  if (!Array.isArray(data.leads)) data.leads = [];
+}
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const nowISO = () => new Date().toISOString();
+const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function daysAgo(iso){ if(!iso) return null; return Math.floor((Date.now() - new Date(iso)) / 86400000); }
+function fmtDate(iso){ if(!iso) return '—'; return new Date(iso).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+
+const OUTCOME_META = {
+  no_answer:    { label: 'No Answer',        cls: 'badge-progress' },
+  wrong_number: { label: 'Wrong Number',     cls: 'badge-dead' },
+  refused:      { label: 'Refused',          cls: 'badge-dead' },
+  referred:     { label: 'Referred',         cls: 'badge-progress' },
+  reached_dm:   { label: 'Reached DM',       cls: 'badge-dm' },
+  callback:     { label: 'Callback Later',   cls: 'badge-progress' },
+};
+
+// ───────────────────────────── LEAD HELPERS ─────────────────────────────
+function currentContact(lead){
+  if (!lead.chain.length) return null;
+  const last = lead.chain[lead.chain.length - 1];
+  if (last.outcome === 'reached_dm') return null; // resolved
+  if (last.outcome === 'referred') return null;   // waiting on next contact info
+  return last; // null outcome (not yet called) or a retry-able outcome
+}
+function needsNextContact(lead){
+  if (!lead.chain.length) return false;
+  const last = lead.chain[lead.chain.length - 1];
+  return last.outcome === 'referred';
+}
+function isResolved(lead){
+  if (!lead.chain.length) return false;
+  return lead.chain[lead.chain.length - 1].outcome === 'reached_dm';
+}
+function leadStatus(lead){
+  if (lead.dead) return 'dead';
+  if (isResolved(lead)) return 'reached_dm';
+  if (lead.chain.length === 1 && lead.chain[0].outcome === null) return 'new';
+  return 'in_progress';
+}
+function statusMeta(status){
+  return {
+    new:          { label: 'New',          cls: 'badge-new' },
+    in_progress:  { label: 'In Progress',  cls: 'badge-progress' },
+    reached_dm:   { label: 'Reached DM',   cls: 'badge-dm' },
+    dead:         { label: 'Dead',         cls: 'badge-dead' },
+  }[status];
+}
+function lastTouchISO(lead){
+  if (!lead.chain.length) return lead.createdAt;
+  const withLog = [...lead.chain].reverse().find(c => c.loggedAt);
+  return withLog ? withLog.loggedAt : lead.createdAt;
+}
+
+// ───────────────────────────── VIEW SWITCHING ─────────────────────────────
+let activeView = 'leads';
+function switchView(v){
+  activeView = v;
+  document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + v));
+  document.querySelectorAll('.tabbtn').forEach(el => el.classList.toggle('active', el.dataset.view === v));
+  document.getElementById('topbar').style.display = v === 'leads' ? 'block' : 'none';
+  if (v === 'leads') renderLeadList();
+  if (v === 'stats') renderStats();
+  if (v === 'settings') renderSettings();
+}
+
+// ───────────────────────────── LEAD LIST ─────────────────────────────
+let activeFilter = 'all';
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'new', label: 'New' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'reached_dm', label: 'Reached DM' },
+  { key: 'dead', label: 'Dead' },
+];
+function renderFilterChips(){
+  document.getElementById('filterChips').innerHTML = FILTERS.map(f => `
+    <button class="fchip${activeFilter === f.key ? ' active' : ''}" onclick="setFilter('${f.key}')">${f.label}</button>
+  `).join('');
+}
+function setFilter(k){ activeFilter = k; renderFilterChips(); renderLeadList(); }
+
+function renderLeadList(){
+  document.getElementById('leadCount').textContent = `${data.leads.filter(l=>!l.dead).length} lead${data.leads.filter(l=>!l.dead).length!==1?'s':''}`;
+  const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  let list = [...data.leads];
+  if (activeFilter !== 'all') list = list.filter(l => leadStatus(l) === activeFilter);
+  if (q) list = list.filter(l => {
+    const hay = [l.brand, l.area, ...l.chain.map(c => c.name)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  list.sort((a, b) => new Date(lastTouchISO(b)) - new Date(lastTouchISO(a)));
+
+  const wrap = document.getElementById('leadListWrap');
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty-state">
+      <div class="empty-state-emoji">📋</div>
+      <div class="empty-state-title">No leads yet</div>
+      <div class="empty-state-body">Tap the + button to add your first lead — brand name and a gatekeeper's number is all you need to start.</div>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(l => {
+    const cur = currentContact(l);
+    const st = leadStatus(l);
+    const meta = statusMeta(st);
+    const who = needsNextContact(l) ? 'Add next contact' : (cur ? `${cur.name || 'Unnamed'}${cur.role ? ' · ' + cur.role : ''}` : (isResolved(l) ? (l.chain[l.chain.length-1].name || 'Marketing Manager') : ''));
+    const d = daysAgo(lastTouchISO(l));
+    return `<div class="leadcard" onclick="openLeadDetail('${l.id}')">
+      <div class="leadcard-main">
+        <div class="leadcard-brand">${esc(l.brand)}</div>
+        <div class="leadcard-sub">${esc(who) || '—'}</div>
+      </div>
+      <div class="leadcard-right">
+        <span class="badge ${meta.cls}">${meta.label}</span>
+        <div class="leadcard-days">${d === 0 ? 'today' : d === 1 ? '1d ago' : d + 'd ago'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ───────────────────────────── ADD LEAD ─────────────────────────────
+function openAddLead(){
+  ['alBrand','alName','alPhone','alRole','alArea'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('addLeadScrim').classList.add('open');
+  document.getElementById('addLeadSheet').classList.add('open');
+  setTimeout(() => document.getElementById('alBrand').focus(), 300);
+}
+function closeAddLead(){
+  document.getElementById('addLeadScrim').classList.remove('open');
+  document.getElementById('addLeadSheet').classList.remove('open');
+}
+function submitAddLead(){
+  const brand = document.getElementById('alBrand').value.trim();
+  if (!brand) { document.getElementById('alBrand').focus(); return; }
+  const name = document.getElementById('alName').value.trim();
+  const phone = document.getElementById('alPhone').value.trim();
+  const role = document.getElementById('alRole').value.trim();
+  const area = document.getElementById('alArea').value.trim();
+  const lead = {
+    id: uid(), brand, area, notes: '', createdAt: nowISO(), dead: false, deadReason: '',
+    chain: [{ name, role, phone, note: '', outcome: null, loggedAt: null }],
+  };
+  data.leads.unshift(lead);
+  save();
+  closeAddLead();
+  renderLeadList();
+}
+
+// ───────────────────────────── EDIT LEAD ─────────────────────────────
+function openEditLead(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  document.getElementById('elBrand').value = l.brand;
+  document.getElementById('elArea').value = l.area || '';
+  document.getElementById('elNotes').value = l.notes || '';
+  document.getElementById('editLeadScrim').classList.add('open');
+  document.getElementById('editLeadSheet').classList.add('open');
+}
+function closeEditLead(){
+  document.getElementById('editLeadScrim').classList.remove('open');
+  document.getElementById('editLeadSheet').classList.remove('open');
+}
+function submitEditLead(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const brand = document.getElementById('elBrand').value.trim();
+  if (!brand) return;
+  l.brand = brand;
+  l.area = document.getElementById('elArea').value.trim();
+  l.notes = document.getElementById('elNotes').value.trim();
+  save();
+  closeEditLead();
+  renderLeadDetail();
+  renderLeadList();
+}
+
+// ───────────────────────────── LEAD DETAIL ─────────────────────────────
+let selLeadId = null;
+function openLeadDetail(id){
+  selLeadId = id;
+  document.getElementById('leadDetailScreen').classList.add('open');
+  renderLeadDetail();
+}
+function closeLeadDetail(){
+  document.getElementById('leadDetailScreen').classList.remove('open');
+  selLeadId = null;
+  renderLeadList();
+}
+function renderLeadDetail(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const st = leadStatus(l);
+  document.getElementById('ldBrand').textContent = l.brand;
+  document.getElementById('ldSub').textContent = (l.area ? l.area + ' · ' : '') + statusMeta(st).label;
+
+  const cur = currentContact(l);
+  let topHtml = '';
+  if (l.dead) {
+    topHtml = `<div class="deadcard">☠ Marked dead${l.deadReason ? ' — ' + esc(l.deadReason) : ''}</div>`;
+  } else if (isResolved(l)) {
+    const dm = l.chain[l.chain.length - 1];
+    topHtml = `<div class="resolved-card">
+      <div class="big">✅</div>
+      <div class="t">Reached the Marketing Manager</div>
+      <div style="margin-top:8px;font-size:13.5px;font-weight:700;">${esc(dm.name || 'Unnamed')}${dm.role ? ' · ' + esc(dm.role) : ''}</div>
+      ${dm.phone ? `<a class="curcard-phone" style="font-size:19px;" href="tel:${dm.phone.replace(/\D/g,'')}">${esc(dm.phone)}</a>` : ''}
+    </div>`;
+  } else if (needsNextContact(l)) {
+    topHtml = `<div class="curcard">
+      <div class="curcard-label">Referred — Next Contact Needed</div>
+      <p style="font-size:13.5px;color:var(--muted);line-height:1.5;">The last person referred you onward. Add who they pointed you to so you can keep going.</p>
+      <button class="logbtn" onclick="openNextContact()">+ Add Next Contact</button>
+    </div>`;
+  } else if (cur) {
+    topHtml = `<div class="curcard">
+      <div class="curcard-label">Current Contact</div>
+      ${cur.role ? `<span class="curcard-role">${esc(cur.role)}</span>` : ''}
+      <div class="curcard-name">${esc(cur.name) || 'Unnamed contact'}</div>
+      ${cur.phone ? `<a class="curcard-phone" href="tel:${cur.phone.replace(/\D/g,'')}">${esc(cur.phone)}</a>` : '<div style="font-size:12.5px;color:var(--muted2);margin-top:6px;">No phone on file</div>'}
+      ${cur.phone ? `<div class="curcard-actions">
+        <a class="pillbtn pillbtn-call" href="tel:${cur.phone.replace(/\D/g,'')}">📞 Call</a>
+        <a class="pillbtn pillbtn-wa" href="https://wa.me/${cur.phone.replace(/\D/g,'')}" target="_blank">💬 WhatsApp</a>
+      </div>` : ''}
+      <button class="logbtn" onclick="openOutcomeSheet()">Log Call Outcome</button>
+    </div>`;
+  }
+
+  const priorChain = l.chain.slice(0, needsNextContact(l) || isResolved(l) ? l.chain.length : l.chain.length - 1);
+  const chainHtml = priorChain.length ? `
+    <div class="section-label">Call History</div>
+    <div class="timeline">${priorChain.map(c => {
+      const om = OUTCOME_META[c.outcome] || { label: c.outcome || 'Pending', cls: 'badge-new' };
+      return `<div class="tl-item">
+        <div class="tl-dot"></div>
+        <div style="flex:1;">
+          <div class="tl-name">${esc(c.name) || 'Unnamed'}</div>
+          ${c.role ? `<div class="tl-role">${esc(c.role)}</div>` : ''}
+          ${c.phone ? `<div class="tl-phone">${esc(c.phone)}</div>` : ''}
+          <span class="tl-outcome badge ${om.cls}">${om.label}</span>
+        </div>
+      </div>`;
+    }).join('')}</div>` : '';
+
+  const notesHtml = `
+    <div class="section-label">Notes</div>
+    <div style="background:#fff;border-radius:14px;padding:13px 15px;font-size:13.5px;color:${l.notes ? 'var(--ink)' : 'var(--muted2)'};line-height:1.55;box-shadow:0 1px 3px rgba(15,27,46,.05);">${esc(l.notes) || 'No notes yet — tap ✎ to add some.'}</div>`;
+
+  const miniActions = `
+    <div class="miniaction">
+      ${l.dead
+        ? `<button class="revive" onclick="reviveLead()">↺ Revive Lead</button>`
+        : `<button class="danger" onclick="markLeadDead()">☠ Mark Dead</button>`}
+      <button onclick="deleteLead()" style="color:var(--red);">🗑 Delete</button>
+    </div>`;
+
+  document.getElementById('ldBody').innerHTML = topHtml + chainHtml + notesHtml + miniActions;
+}
+
+function markLeadDead(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const reason = prompt('Reason (optional):') || '';
+  l.dead = true; l.deadReason = reason;
+  save(); renderLeadDetail(); renderLeadList();
+}
+function reviveLead(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  l.dead = false; l.deadReason = '';
+  save(); renderLeadDetail(); renderLeadList();
+}
+function deleteLead(){
+  if (!confirm('Permanently delete this lead? This cannot be undone.')) return;
+  data.leads = data.leads.filter(x => x.id !== selLeadId);
+  save();
+  closeLeadDetail();
+}
+
+// ───────────────────────────── OUTCOME LOGGING ─────────────────────────────
+function openOutcomeSheet(){
+  document.getElementById('outcomeScrim').classList.add('open');
+  document.getElementById('outcomeSheet').classList.add('open');
+}
+function closeOutcomeSheet(){
+  document.getElementById('outcomeScrim').classList.remove('open');
+  document.getElementById('outcomeSheet').classList.remove('open');
+}
+function logOutcome(outcome){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const cur = l.chain[l.chain.length - 1];
+  cur.outcome = outcome;
+  cur.loggedAt = nowISO();
+  save();
+  closeOutcomeSheet();
+  renderLeadDetail();
+  if (outcome === 'referred') {
+    setTimeout(openNextContact, 320);
+  }
+}
+
+// ───────────────────────────── NEXT CONTACT (chain hop) ─────────────────────────────
+function openNextContact(){
+  ['ncName','ncPhone','ncRole'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nextScrim').classList.add('open');
+  document.getElementById('nextContactSheet').classList.add('open');
+  setTimeout(() => document.getElementById('ncName').focus(), 300);
+}
+function closeNextContact(){
+  document.getElementById('nextScrim').classList.remove('open');
+  document.getElementById('nextContactSheet').classList.remove('open');
+  renderLeadDetail();
+}
+function submitNextContact(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const name = document.getElementById('ncName').value.trim();
+  const phone = document.getElementById('ncPhone').value.trim();
+  const role = document.getElementById('ncRole').value.trim();
+  l.chain.push({ name, role, phone, note: '', outcome: null, loggedAt: null });
+  save();
+  closeNextContact();
+  renderLeadDetail();
+  renderLeadList();
+}
+
+// ───────────────────────────── STATS ─────────────────────────────
+function renderStats(){
+  const alive = data.leads.filter(l => !l.dead);
+  const dead = data.leads.filter(l => l.dead);
+  const reachedDm = alive.filter(l => isResolved(l));
+  const allCalls = data.leads.flatMap(l => l.chain.filter(c => c.outcome));
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const callsToday = allCalls.filter(c => new Date(c.loggedAt) >= today).length;
+  const callsWeek = allCalls.filter(c => new Date(c.loggedAt) >= weekStart).length;
+  const referrals = allCalls.filter(c => c.outcome === 'referred' || c.outcome === 'reached_dm').length;
+  const successRate = allCalls.length ? Math.round((referrals / allCalls.length) * 100) : 0;
+  const noAnswer = allCalls.filter(c => c.outcome === 'no_answer').length;
+  const noAnswerRate = allCalls.length ? Math.round((noAnswer / allCalls.length) * 100) : 0;
+
+  const tiles = [
+    { label: 'Total Leads', val: data.leads.length, sub: `${dead.length} dead` },
+    { label: 'Calls Today', val: callsToday, sub: `${callsWeek} this week` },
+    { label: 'Reached DM', val: reachedDm.length, sub: `of ${alive.length} active` },
+    { label: 'Total Calls Logged', val: allCalls.length, sub: 'all time' },
+    { label: 'Referral / Success Rate', val: successRate + '%', sub: 'led to a referral or DM', wide: true },
+    { label: 'No-Answer Rate', val: noAnswerRate + '%', sub: `${noAnswer} of ${allCalls.length} calls`, wide: true },
+  ];
+  document.getElementById('statGrid').innerHTML = tiles.map(t => `
+    <div class="stattile${t.wide ? ' wide' : ''}">
+      <div class="stattile-label">${t.label}</div>
+      <div class="stattile-val">${t.val}</div>
+      <div class="stattile-sub">${t.sub}</div>
+    </div>`).join('');
+}
+
+// ───────────────────────────── SETTINGS / BACKUP ─────────────────────────────
+function renderSettings(){
+  const last = data.lastBackupAt;
+  const d = last ? daysAgo(last) : null;
+  const warnHtml = (last === null)
+    ? `<div class="backup-warn">⚠ You've never backed up. Export a copy so you don't lose your leads.</div>`
+    : (d >= 3
+      ? `<div class="backup-warn">⚠ Last backup was ${d} day${d!==1?'s':''} ago — export again to stay safe.</div>`
+      : `<div class="backup-ok">✓ Last backup: ${fmtDate(last)}</div>`);
+
+  document.getElementById('settingsWrap').innerHTML = `
+    <div class="setcard">
+      <div class="setcard-title">Backup Your Data</div>
+      ${warnHtml}
+      <div class="setcard-body">Everything is stored only on this phone. Export a file anytime and send it to your laptop via AirDrop, Files, or Mail.</div>
+      <button class="setbtn setbtn-primary" onclick="exportData()">⬆️ Export Leads (.json)</button>
+    </div>
+    <div class="setcard">
+      <div class="setcard-title">Import Leads</div>
+      <div class="setcard-body">Bring in a previously exported file. New leads are added; leads that already exist here are left untouched.</div>
+      <button class="setbtn setbtn-ghost" onclick="document.getElementById('importFile').click()">⬇️ Import .json File</button>
+    </div>
+    <div class="setcard">
+      <div class="setcard-title">Danger Zone</div>
+      <div class="setcard-body">Permanently erase all leads from this phone. Cannot be undone — export a backup first.</div>
+      <button class="setbtn setbtn-danger" onclick="clearAllData()">Erase All Data</button>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--muted2);margin-top:6px;">Fama Leads · data stays on this device</div>
+  `;
+}
+
+async function exportData(){
+  const payload = JSON.stringify(data, null, 2);
+  const filename = `fama-leads-${new Date().toISOString().slice(0,10)}.json`;
+  const file = new File([payload], filename, { type: 'application/json' });
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Fama Leads Backup' });
+      data.lastBackupAt = nowISO(); save(); renderSettings();
+      return;
+    } catch (e) { /* user cancelled or share failed — fall back below */ }
+  }
+  // fallback: plain download link
+  const url = URL.createObjectURL(new Blob([payload], { type: 'application/json' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  data.lastBackupAt = nowISO(); save(); renderSettings();
+}
+
+document.getElementById('importFile').addEventListener('change', function(){
+  const f = this.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const incoming = JSON.parse(reader.result);
+      const incomingLeads = Array.isArray(incoming.leads) ? incoming.leads : [];
+      const existingIds = new Set(data.leads.map(l => l.id));
+      let added = 0;
+      incomingLeads.forEach(l => { if (!existingIds.has(l.id)) { data.leads.push(l); added++; } });
+      save();
+      alert(`Imported ${added} new lead${added!==1?'s':''}. ${incomingLeads.length - added} already existed and were skipped.`);
+      renderLeadList();
+    } catch (e) {
+      alert('Could not read that file — make sure it\'s a Fama Leads export.');
+    }
+    document.getElementById('importFile').value = '';
+  };
+  reader.readAsText(f);
+});
+
+function clearAllData(){
+  if (!confirm('Erase ALL leads from this phone? This cannot be undone.')) return;
+  if (!confirm('Really sure? Export a backup first if you haven\'t.')) return;
+  data = { leads: [], lastBackupAt: data.lastBackupAt };
+  save();
+  renderLeadList(); renderSettings();
+}
+
+// ───────────────────────────── INIT ─────────────────────────────
+load();
+renderFilterChips();
+renderLeadList();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

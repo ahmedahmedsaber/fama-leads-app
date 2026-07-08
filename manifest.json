@@ -1,0 +1,16 @@
+{
+  "name": "Fama Leads",
+  "short_name": "Fama Leads",
+  "description": "Track cold-call leads and gatekeeper referral chains on the go.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF4FA",
+  "theme_color": "#014AAD",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/apple-touch-icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
