@@ -1,4 +1,4 @@
-const CACHE = 'fama-leads-v4';
+const CACHE = 'fama-leads-v5-debug';
 const ASSETS = [
   './',
   './index.html',

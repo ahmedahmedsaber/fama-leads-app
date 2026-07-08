@@ -267,6 +267,8 @@ input[type=file]{display:none;}
 </head>
 <body>
 
+<div id="debugBar" style="position:fixed;left:0;right:0;bottom:0;background:#ff0040;color:#fff;font-size:10px;font-family:monospace;padding:5px 8px;z-index:99999;white-space:pre-wrap;line-height:1.4;"></div>
+
 <div id="app">
   <div class="topbar" id="topbar">
     <div class="topbar-row">
@@ -1289,7 +1291,27 @@ function syncAppHeight(){
   const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   document.documentElement.style.setProperty('--app-height', h + 'px');
 }
+function measureSafeBottom(){
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;bottom:0;height:0;padding-bottom:env(safe-area-inset-bottom, 0px);visibility:hidden;';
+  document.body.appendChild(probe);
+  const v = getComputedStyle(probe).paddingBottom;
+  probe.remove();
+  return v;
+}
+function updateDebugBar(){
+  const el = document.getElementById('debugBar');
+  if (!el) return;
+  const appRect = document.getElementById('app').getBoundingClientRect();
+  const tabRect = document.querySelector('.tabbar').getBoundingClientRect();
+  el.textContent =
+    `innerH:${window.innerHeight} vvH:${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'} screenH:${window.screen.height} dpr:${window.devicePixelRatio}\n` +
+    `standalone:${window.matchMedia('(display-mode: standalone)').matches} appHvar:${getComputedStyle(document.documentElement).getPropertyValue('--app-height')}\n` +
+    `appBottom:${Math.round(appRect.bottom)} tabBottom:${Math.round(tabRect.bottom)} safeB:${measureSafeBottom()}`;
+}
 syncAppHeight();
+updateDebugBar();
+window.addEventListener('resize', updateDebugBar);
 window.addEventListener('resize', syncAppHeight);
 window.addEventListener('orientationchange', syncAppHeight);
 if (window.visualViewport) {
