@@ -1284,12 +1284,24 @@ function clearAllData(){
 }
 
 // ───────────────────────────── VIEWPORT HEIGHT FIX ─────────────────────────────
-// iOS WebKit can leave position:fixed elements sized against a stale (taller) viewport
-// after the on-screen keyboard closes, leaving dead space at the bottom. Pin height
-// to the real visual viewport as a defensive fix on top of `dvh`.
+// Some iOS/WebKit builds under-report the usable viewport (window.innerHeight /
+// visualViewport.height) below the true device height (window.screen.height) without
+// exposing the shortfall via env(safe-area-inset-bottom) — leaving dead space at the
+// bottom that no CSS safe-area handling can account for. Detect that shortfall directly
+// and (a) size #app to the true screen height instead, (b) reuse the measured shortfall
+// as the effective bottom safe-area padding for the tab bar / FAB / sheets. A real keyboard
+// opening is distinguished by a much larger shrink and is left alone so content isn't
+// hidden behind it.
 function syncAppHeight(){
-  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const vvH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const screenH = window.screen.height;
+  const gap = screenH - vvH;
+  const keyboardLikelyOpen = gap > 150;
+  const h = keyboardLikelyOpen ? vvH : Math.max(vvH, screenH);
   document.documentElement.style.setProperty('--app-height', h + 'px');
+  if (!keyboardLikelyOpen && gap > 0) {
+    document.documentElement.style.setProperty('--safe-b', gap + 'px');
+  }
 }
 function measureSafeArea(side){
   const probe = document.createElement('div');
