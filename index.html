@@ -1291,23 +1291,26 @@ function syncAppHeight(){
   const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
   document.documentElement.style.setProperty('--app-height', h + 'px');
 }
-function measureSafeBottom(){
+function measureSafeArea(side){
   const probe = document.createElement('div');
-  probe.style.cssText = 'position:fixed;bottom:0;height:0;padding-bottom:env(safe-area-inset-bottom, 0px);visibility:hidden;';
+  probe.style.cssText = `position:fixed;${side}:0;height:0;padding-${side}:env(safe-area-inset-${side}, 0px);visibility:hidden;`;
   document.body.appendChild(probe);
-  const v = getComputedStyle(probe).paddingBottom;
+  const v = getComputedStyle(probe).getPropertyValue(`padding-${side}`);
   probe.remove();
   return v;
 }
+function measureSafeBottom(){ return measureSafeArea('bottom'); }
 function updateDebugBar(){
   const el = document.getElementById('debugBar');
   if (!el) return;
   const appRect = document.getElementById('app').getBoundingClientRect();
   const tabRect = document.querySelector('.tabbar').getBoundingClientRect();
+  const topbarRect = document.getElementById('topbar').getBoundingClientRect();
   el.textContent =
-    `innerH:${window.innerHeight} vvH:${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'} screenH:${window.screen.height} dpr:${window.devicePixelRatio}\n` +
+    `innerH:${window.innerHeight} outerH:${window.outerHeight} vvH:${window.visualViewport ? Math.round(window.visualViewport.height) : 'n/a'} vvOffTop:${window.visualViewport ? Math.round(window.visualViewport.offsetTop) : 'n/a'} screenH:${window.screen.height} dpr:${window.devicePixelRatio}\n` +
     `standalone:${window.matchMedia('(display-mode: standalone)').matches} appHvar:${getComputedStyle(document.documentElement).getPropertyValue('--app-height')}\n` +
-    `appBottom:${Math.round(appRect.bottom)} tabBottom:${Math.round(tabRect.bottom)} safeB:${measureSafeBottom()}`;
+    `safeT:${measureSafeArea('top')} safeB:${measureSafeArea('bottom')} topbarTop:${Math.round(topbarRect.top)}\n` +
+    `appBottom:${Math.round(appRect.bottom)} tabBottom:${Math.round(tabRect.bottom)} winScrollY:${Math.round(window.scrollY)}`;
 }
 syncAppHeight();
 updateDebugBar();
