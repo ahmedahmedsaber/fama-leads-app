@@ -136,6 +136,7 @@ input,textarea,select{font-size:16px;} /* prevent iOS auto-zoom */
 .pillbtn{flex:1;padding:11px;border-radius:12px;border:none;font-size:13.5px;font-weight:800;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;}
 .pillbtn-call{background:var(--accent-grad);color:#fff;box-shadow:0 6px 16px rgba(46,99,255,.35);}
 .pillbtn-wa{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);}
+.pillbtn-save{background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-border);}
 .curcard-phone{display:block;font-size:19px;font-weight:800;color:var(--accent2);text-decoration:none;margin-top:4px;}
 .curcard-role{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(59,124,255,.15);color:var(--accent2);margin-bottom:6px;}
 .logbtn{display:block;width:100%;margin-top:16px;padding:14px;border-radius:13px;border:none;background:var(--accent-grad);color:#fff;font-size:14.5px;font-weight:800;}
@@ -552,6 +553,35 @@ function waLink(phone, text){
   const d = waDigits(phone);
   if (!d) return '';
   return `https://wa.me/${d}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+}
+
+// vCard 3.0 requires backslash-escaping ; , \ and literal newlines in text fields
+function escVCard(s){
+  return String(s || '').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+// Opens iOS's native "Add Contact" screen pre-filled via a text/vcard data URI —
+// a website can't write to Contacts directly, this is the standard workaround.
+function saveContactToPhone(){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  const n = findNode(l.root, selNodeId); if (!n) return;
+  const displayName = [n.name, n.role, l.brand, l.area].filter(Boolean).join(' · ');
+  const phoneDigits = (n.phone || '').replace(/\D/g,'');
+  const vcard = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:;${escVCard(displayName)};;;`,
+    `FN:${escVCard(displayName)}`,
+    'ORG:Fama 3',
+    phoneDigits ? `TEL;TYPE=CELL:${phoneDigits}` : '',
+    'END:VCARD',
+    ''
+  ].filter(Boolean).join('\r\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/vcard;charset=utf-8,' + encodeURIComponent(vcard);
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // migrate a lead from the old flat `chain` array to the contact tree (`root` + nested `children`)
@@ -1195,6 +1225,7 @@ function renderNodeSheet(){
     ${n.phone ? `<div class="curcard-actions" style="margin-top:10px;">
       <a class="pillbtn pillbtn-call" href="tel:${phoneDigits}">📞 Call</a>
       <a class="pillbtn pillbtn-wa" href="${waLink(n.phone)}" target="_blank">💬 WhatsApp</a>
+      <button class="pillbtn pillbtn-save" onclick="saveContactToPhone()">📇 Save</button>
     </div>` : '<div style="font-size:12.5px;color:var(--muted2);margin-top:8px;">No phone on file</div>'}
 
     <div class="section-label">Log Outcome</div>
