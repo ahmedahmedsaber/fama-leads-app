@@ -86,6 +86,7 @@ input,textarea,select{font-size:16px;} /* prevent iOS auto-zoom */
 .leadcard-sub{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .leadcard-right{flex:0 0 auto;text-align:right;}
 .lc-chevron{flex:0 0 auto;font-size:20px;color:rgba(255,255,255,.25);}
+.lc-wabtn{flex:0 0 auto;width:32px;height:32px;border-radius:10px;background:var(--green-bg);border:1px solid var(--green-border);color:var(--green);font-size:15px;display:grid;place-items:center;}
 .badge{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;}
 .badge-new{background:rgba(59,124,255,.15);color:var(--accent2);}
 .badge-progress{background:var(--amber-bg);color:var(--amber);}
@@ -284,6 +285,8 @@ input[type=file]{display:none;}
 .mtg-row-main{flex:1;min-width:0;}
 .mtg-row-brand{font-size:14.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mtg-row-loc{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mtg-row-contact{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mtg-row-contact a{color:var(--accent2);font-weight:600;}
 .mtg-row-time{font-size:11.5px;color:var(--accent2);font-weight:700;margin-top:4px;}
 .mtg-row-right{flex:0 0 auto;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
 .mtg-confirmbtn{padding:7px 12px;border-radius:10px;border:1px solid var(--green-border);background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800;}
@@ -417,6 +420,9 @@ input[type=file]{display:none;}
     <div class="fg"><label class="fl">Brand *</label>
       <select class="fi" id="smBrand" onchange="onSmBrandChange()"></select>
     </div>
+    <div class="fg"><label class="fl">Meeting With</label>
+      <select class="fi" id="smContact"></select>
+    </div>
     <div class="fg"><label class="fl">Date *</label><input class="fi" id="smDate" type="date"></div>
     <div class="rowbtns">
       <div class="fg"><label class="fl">Start Time *</label><input class="fi" id="smStart" type="time" onchange="onSmStartChange()"></div>
@@ -532,6 +538,21 @@ function initials(str){
   return (str || '').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase() || '?';
 }
 function money(n){ return (n||0).toLocaleString('en-US') + ' EGP'; }
+
+// Egyptian numbers are entered locally (e.g. 01012345678); WhatsApp needs the +20
+// country code with no leading 0, so normalize before building any wa.me link.
+function waDigits(phone){
+  let p = String(phone || '').replace(/\D/g,'');
+  if (!p) return '';
+  if (p.startsWith('20')) return p;
+  if (p.startsWith('0')) p = p.slice(1);
+  return '20' + p;
+}
+function waLink(phone, text){
+  const d = waDigits(phone);
+  if (!d) return '';
+  return `https://wa.me/${d}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+}
 
 // migrate a lead from the old flat `chain` array to the contact tree (`root` + nested `children`)
 function migrateLead(l){
@@ -752,10 +773,14 @@ function renderMeetingList(meetings, mode){
     const rightHtml = (mode === 'tomorrow' && mt.status !== 'confirmed')
       ? `<button class="mtg-confirmbtn" onclick="event.stopPropagation();confirmMeeting('${mt.id}')">Confirm</button>`
       : `<span class="badge ${STATUS_BADGE[mt.status] || 'badge-new'}">${mt.status}</span>`;
+    const contactHtml = mt.contactName
+      ? `<div class="mtg-row-contact">👤 ${esc(mt.contactName)}${mt.contactPhone ? ` · <a href="tel:${mt.contactPhone.replace(/\D/g,'')}" onclick="event.stopPropagation()">${esc(mt.contactPhone)}</a>` : ''}</div>`
+      : '';
     return `<div class="mtg-row" onclick="openScheduleMeeting(null,'${mt.id}')">
       <div class="mtg-row-main">
         <div class="mtg-row-brand">${esc(mt.brand)}</div>
         <div class="mtg-row-loc">${esc(mt.location || 'No location set')}</div>
+        ${contactHtml}
         <div class="mtg-row-time">${fmtTimeRange12(mt.startTime, mt.endTime)}</div>
       </div>
       <div class="mtg-row-right">${rightHtml}</div>
@@ -767,7 +792,18 @@ function selectCalDate(ds){ selectedCalDate = ds; renderCalendar(); }
 function calShiftMonth(delta){ calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth()+delta, 1); renderCalendar(); }
 
 // ───────────────────────────── SCHEDULE MEETING ─────────────────────────────
-function openScheduleMeeting(dateStr, meetingId){
+function populateSmContact(leadId, selectedContactId){
+  const contactSel = document.getElementById('smContact');
+  const lead = data.leads.find(l => l.id === leadId);
+  const contacts = lead && lead.root ? flattenOrdered(lead.root) : [];
+  if (!contacts.length){
+    contactSel.innerHTML = '<option value="">No contacts on this lead yet</option>';
+    return;
+  }
+  contactSel.innerHTML = contacts.map(c => `<option value="${c.id}">${esc(c.name || 'Unnamed')}${c.role ? ' · ' + esc(c.role) : ''}</option>`).join('');
+  if (selectedContactId) contactSel.value = selectedContactId;
+}
+function openScheduleMeeting(dateStr, meetingId, presetLeadId){
   smEditingId = meetingId || null;
   const sel = document.getElementById('smBrand');
   sel.innerHTML = data.leads.filter(l => !l.dead).map(l => `<option value="${l.id}">${esc(l.brand)}</option>`).join('') || '<option value="">No active leads yet</option>';
@@ -783,7 +819,9 @@ function openScheduleMeeting(dateStr, meetingId){
     document.getElementById('smEnd').value = existing.endTime;
     document.getElementById('smLocation').value = existing.location || '';
     document.getElementById('smNotes').value = existing.notes || '';
+    populateSmContact(existing.leadId, existing.contactId);
   } else {
+    if (presetLeadId) sel.value = presetLeadId;
     document.getElementById('smDate').value = dateStr || selectedCalDate;
     document.getElementById('smStart').value = '';
     document.getElementById('smEnd').value = '';
@@ -798,8 +836,10 @@ function closeScheduleMeeting(){
   document.getElementById('scheduleMeetingSheet').classList.remove('open');
 }
 function onSmBrandChange(){
-  const lead = data.leads.find(l => l.id === document.getElementById('smBrand').value);
+  const leadId = document.getElementById('smBrand').value;
+  const lead = data.leads.find(l => l.id === leadId);
   document.getElementById('smLocation').value = lead ? (lead.area || '') : '';
+  populateSmContact(leadId);
 }
 function onSmStartChange(){
   const endEl = document.getElementById('smEnd');
@@ -820,16 +860,21 @@ function submitScheduleMeeting(){
   if (!date || !startTime || !endTime) return;
   const location = document.getElementById('smLocation').value.trim();
   const notes = document.getElementById('smNotes').value.trim();
+  const contactId = document.getElementById('smContact').value;
+  const contact = contactId && lead.root ? findNode(lead.root, contactId) : null;
+  const contactName = contact ? contact.name : '';
+  const contactPhone = contact ? contact.phone : '';
 
   if (smEditingId){
     const mt = data.meetings.find(m => m.id === smEditingId);
-    if (mt) Object.assign(mt, { leadId, brand: lead.brand, location, date, startTime, endTime, notes });
+    if (mt) Object.assign(mt, { leadId, brand: lead.brand, location, date, startTime, endTime, notes, contactId, contactName, contactPhone });
   } else {
-    data.meetings.push({ id: uid(), leadId, brand: lead.brand, location, date, startTime, endTime, notes, status: 'scheduled', createdAt: nowISO() });
+    data.meetings.push({ id: uid(), leadId, brand: lead.brand, location, date, startTime, endTime, notes, contactId, contactName, contactPhone, status: 'scheduled', createdAt: nowISO() });
   }
   save();
   closeScheduleMeeting();
   renderCalendar();
+  if (selLeadId === leadId) renderLeadDetail();
 }
 function confirmMeeting(id){
   const mt = data.meetings.find(m => m.id === id); if (!mt) return;
@@ -842,6 +887,7 @@ function deleteMeeting(id){
   save();
   closeScheduleMeeting();
   renderCalendar();
+  if (selLeadId) renderLeadDetail();
 }
 
 // ───────────────────────────── LEAD LIST ─────────────────────────────
@@ -898,6 +944,10 @@ function renderLeadList(){
     const meta = statusMeta(st);
     const who = l.root ? `${l.root.name || 'Unnamed'}${l.root.role ? ' · ' + l.root.role : ''}` : 'No contact yet';
     const d = daysAgo(lastTouchISO(l));
+    const waContact = findTargetNode(l.root) || l.root;
+    const waBtn = (waContact && waContact.phone)
+      ? `<button class="lc-wabtn" onclick="event.stopPropagation();sendBrandDetails('${l.id}')" title="Send brand details via WhatsApp">💬</button>`
+      : '';
     return `<div class="leadcard" onclick="openLeadDetail('${l.id}')">
       <div class="lc-avatar">${esc(initials(l.brand))}</div>
       <div class="leadcard-main">
@@ -908,9 +958,16 @@ function renderLeadList(){
         <span class="badge ${meta.cls}">${meta.label}</span>
         <div class="leadcard-days">${d === 0 ? 'today' : d === 1 ? '1d ago' : d + 'd ago'}</div>
       </div>
+      ${waBtn}
       <div class="lc-chevron">›</div>
     </div>`;
   }).join('');
+}
+function sendBrandDetails(leadId){
+  const l = data.leads.find(x => x.id === leadId); if (!l) return;
+  const contact = findTargetNode(l.root) || l.root; if (!contact || !contact.phone) return;
+  const text = `Hi ${contact.name || 'there'}, this is Fama — sharing our brand details with you now 📎`;
+  window.open(waLink(contact.phone, text), '_blank');
 }
 function createFromSearch(){
   const q = document.getElementById('searchInput').value.trim();
@@ -1045,6 +1102,21 @@ function renderLeadDetail(){
 
   const treeHtml = renderTree(l);
 
+  const leadMeetings = data.meetings.filter(m => m.leadId === l.id)
+    .sort((a,b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  const meetingsHtml = `
+    <div class="section-label">Meetings</div>
+    ${leadMeetings.length ? leadMeetings.map(mt => `
+      <div class="mtg-row" onclick="openScheduleMeeting(null,'${mt.id}')">
+        <div class="mtg-row-main">
+          <div class="mtg-row-brand">${fmtCalDate(mt.date)}</div>
+          <div class="mtg-row-loc">${esc(mt.contactName || 'No contact selected')}${mt.location ? ' · ' + esc(mt.location) : ''}</div>
+          <div class="mtg-row-time">${fmtTimeRange12(mt.startTime, mt.endTime)}</div>
+        </div>
+        <div class="mtg-row-right"><span class="badge ${mt.status === 'confirmed' ? 'badge-dm' : mt.status === 'cancelled' ? 'badge-dead' : mt.status === 'done' ? 'badge-closed' : 'badge-new'}">${mt.status}</span></div>
+      </div>`).join('') : `<div class="empty-state" style="padding:22px 20px;"><div class="empty-state-body">No meetings scheduled yet.</div></div>`}
+    <button class="mtg-addbtn" onclick="openScheduleMeeting(null,null,'${l.id}')">+ Schedule Meeting</button>`;
+
   const notesHtml = `
     <div class="section-label">Notes</div>
     <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:13px 15px;font-size:13.5px;color:${l.notes ? 'var(--ink)' : 'var(--muted2)'};line-height:1.55;">${esc(l.notes) || 'No notes yet — tap ✎ to add some.'}</div>`;
@@ -1057,7 +1129,7 @@ function renderLeadDetail(){
       <button onclick="deleteLead()" style="color:var(--red);">🗑 Delete</button>
     </div>`;
 
-  document.getElementById('ldBody').innerHTML = bannerHtml + treeHtml + notesHtml + miniActions;
+  document.getElementById('ldBody').innerHTML = bannerHtml + treeHtml + meetingsHtml + notesHtml + miniActions;
 }
 
 function markLeadDead(){
@@ -1122,7 +1194,7 @@ function renderNodeSheet(){
     ${n.role ? `<span class="curcard-role">${esc(n.role)}</span>` : ''}
     ${n.phone ? `<div class="curcard-actions" style="margin-top:10px;">
       <a class="pillbtn pillbtn-call" href="tel:${phoneDigits}">📞 Call</a>
-      <a class="pillbtn pillbtn-wa" href="https://wa.me/${phoneDigits}" target="_blank">💬 WhatsApp</a>
+      <a class="pillbtn pillbtn-wa" href="${waLink(n.phone)}" target="_blank">💬 WhatsApp</a>
     </div>` : '<div style="font-size:12.5px;color:var(--muted2);margin-top:8px;">No phone on file</div>'}
 
     <div class="section-label">Log Outcome</div>
