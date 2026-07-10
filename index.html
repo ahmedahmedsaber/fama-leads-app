@@ -310,6 +310,7 @@ input[type=file]{display:none;}
     </div>
     <div class="searchbar"><input id="searchInput" placeholder="Search brand or contact name…" oninput="renderLeadList()"></div>
     <div class="chiprow" id="filterChips"></div>
+    <div class="chiprow" id="callFilterChips"></div>
   </div>
 
   <div class="view active" id="view-leads">
@@ -639,11 +640,14 @@ function load(){
 function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
 
 const NODE_OUTCOME_META = {
-  no_answer:    { label: 'No Answer',      cls: 'badge-slate' },
-  wrong_number: { label: 'Wrong Number',   cls: 'badge-orange' },
-  refused:      { label: 'Refused',        cls: 'badge-dead' },
-  callback:     { label: 'Callback Later', cls: 'badge-progress' },
-  reached:      { label: 'Reached',        cls: 'badge-dm' },
+  no_answer:      { label: 'No Answer',                       cls: 'badge-slate' },
+  wrong_number:   { label: 'Wrong Number',                    cls: 'badge-orange' },
+  refused:        { label: 'Refused',                         cls: 'badge-dead' },
+  callback:       { label: 'Callback Later',                  cls: 'badge-progress' },
+  reached:        { label: 'Reached',                         cls: 'badge-dm' },
+  reached_admin:  { label: 'Reached the Administration',      cls: 'badge-dm' },
+  no_details:     { label: "Doesn't Have Further Details",    cls: 'badge-slate' },
+  will_get_back:  { label: 'Will Get Back If Interested',     cls: 'badge-progress' },
 };
 
 // ───────────────────────────── TREE HELPERS ─────────────────────────────
@@ -687,6 +691,14 @@ function leadStatus(lead){
   if (findTargetReached(lead.root)) return 'reached_dm';
   if (lead.root.outcome === null && lead.root.children.length === 0) return 'new';
   return 'in_progress';
+}
+function lastCallOutcome(lead){
+  if (!lead.root) return null;
+  const logs = [];
+  flattenOrdered(lead.root).forEach(n => n.callLog.forEach(c => logs.push(c)));
+  if (!logs.length) return null;
+  logs.sort((a,b) => new Date(b.at) - new Date(a.at));
+  return logs[0].outcome;
 }
 function statusMeta(status){
   return {
@@ -945,6 +957,19 @@ function renderFilterChips(){
 }
 function setFilter(k){ activeFilter = k; renderFilterChips(); renderLeadList(); }
 
+let activeCallFilter = 'all';
+const CALL_FILTERS = [
+  { key: 'all', label: 'Any Last Call' },
+  ...Object.keys(NODE_OUTCOME_META).map(key => ({ key, label: NODE_OUTCOME_META[key].label })),
+  { key: 'none', label: 'Never Called' },
+];
+function renderCallFilterChips(){
+  document.getElementById('callFilterChips').innerHTML = CALL_FILTERS.map(f => `
+    <button class="fchip${activeCallFilter === f.key ? ' active' : ''}" onclick="setCallFilter('${f.key}')">${f.label}</button>
+  `).join('');
+}
+function setCallFilter(k){ activeCallFilter = k; renderCallFilterChips(); renderLeadList(); }
+
 function renderLeadList(){
   document.getElementById('leadCount').textContent = `${data.leads.filter(l=>!l.dead).length} lead${data.leads.filter(l=>!l.dead).length!==1?'s':''}`;
   renderProgressBar('progressLabel', 'progressFill');
@@ -952,6 +977,8 @@ function renderLeadList(){
   const q = qRaw.toLowerCase();
   let list = [...data.leads];
   if (activeFilter !== 'all') list = list.filter(l => leadStatus(l) === activeFilter);
+  if (activeCallFilter === 'none') list = list.filter(l => lastCallOutcome(l) === null);
+  else if (activeCallFilter !== 'all') list = list.filter(l => lastCallOutcome(l) === activeCallFilter);
   if (q) list = list.filter(l => {
     const names = l.root ? flattenOrdered(l.root).map(n => n.name) : [];
     const hay = [l.brand, l.area, ...names].join(' ').toLowerCase();
@@ -1239,9 +1266,12 @@ function renderNodeSheet(){
     <div class="section-label">Log Outcome</div>
     <div class="outcomelist">
       <button class="ocbtn ok" onclick="logNodeOutcome('reached')"><span class="ic">✅</span> Reached — Spoke to Them</button>
+      <button class="ocbtn ok" onclick="logNodeOutcome('reached_admin')"><span class="ic">🏢</span> Reached the Administration</button>
       <button class="ocbtn warn" onclick="logNodeOutcome('callback')"><span class="ic">🔁</span> Call Back Later</button>
+      <button class="ocbtn warn" onclick="logNodeOutcome('will_get_back')"><span class="ic">⏳</span> Will Get Back If Interested</button>
       <button class="ocbtn" onclick="logNodeOutcome('no_answer')"><span class="ic">📵</span> No Answer</button>
       <button class="ocbtn" onclick="logNodeOutcome('wrong_number')"><span class="ic">☎️</span> Wrong Number</button>
+      <button class="ocbtn" onclick="logNodeOutcome('no_details')"><span class="ic">🤷</span> Doesn't Have Further Details</button>
       <button class="ocbtn bad" onclick="logNodeOutcome('refused')"><span class="ic">🚫</span> Refused</button>
     </div>
     ${om ? `<div style="margin-top:9px;font-size:12px;color:var(--muted);">Current status: <b>${om.label}</b></div>` : ''}
@@ -1669,6 +1699,7 @@ if (window.visualViewport) {
 // ───────────────────────────── INIT ─────────────────────────────
 load();
 renderFilterChips();
+renderCallFilterChips();
 renderLeadList();
 
 if ('serviceWorker' in navigator) {
