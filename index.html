@@ -263,6 +263,31 @@ input[type=file]{display:none;}
 .dealcard-amt{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;background:var(--gold-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
 .dealcard-pkg{font-size:12px;color:var(--muted);margin-top:4px;}
 .dealcard-date{font-size:11px;color:var(--muted2);margin-top:4px;}
+
+/* CALENDAR */
+.calhead{position:relative;overflow:hidden;padding:calc(var(--safe-t) + 20px) 18px 8px;color:#fff;background:var(--header-grad);}
+.calhead::before{content:'';position:absolute;top:-70px;right:-50px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle, rgba(120,170,255,.45), transparent 70%);filter:blur(6px);pointer-events:none;}
+.calhead-title{position:relative;font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;}
+.calbody{padding:16px 14px calc(90px + var(--safe-b));}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.cal-navbtn{width:34px;height:34px;border-radius:11px;background:var(--card);border:1px solid var(--card-border);color:var(--ink);font-size:16px;display:grid;place-items:center;}
+.cal-navlabel{font-size:15px;font-weight:800;color:var(--ink);font-family:'Space Grotesk',sans-serif;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:18px;}
+.cal-weekday{text-align:center;font-size:10.5px;font-weight:700;color:var(--muted3);text-transform:uppercase;padding-bottom:4px;}
+.cal-day{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:600;color:var(--ink);background:var(--card);border:1px solid transparent;}
+.cal-day.other-month{color:var(--muted2);background:transparent;}
+.cal-day.today{border-color:var(--blue);color:var(--accent2);}
+.cal-day.selected{background:var(--accent-grad);color:#fff;}
+.cal-day-dot{width:4px;height:4px;border-radius:50%;background:var(--cyan);margin-top:3px;}
+.cal-day.selected .cal-day-dot{background:#fff;}
+.mtg-row{background:var(--card);border:1px solid var(--card-border);border-radius:16px;padding:13px 14px;margin-bottom:9px;display:flex;align-items:center;gap:10px;}
+.mtg-row-main{flex:1;min-width:0;}
+.mtg-row-brand{font-size:14.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mtg-row-loc{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mtg-row-time{font-size:11.5px;color:var(--accent2);font-weight:700;margin-top:4px;}
+.mtg-row-right{flex:0 0 auto;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.mtg-confirmbtn{padding:7px 12px;border-radius:10px;border:1px solid var(--green-border);background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800;}
+.mtg-addbtn{display:block;width:100%;padding:13px;border-radius:13px;border:1.5px dashed rgba(255,255,255,.18);background:rgba(255,255,255,.03);color:var(--accent2);font-size:13.5px;font-weight:800;margin-bottom:16px;}
 </style>
 </head>
 <body>
@@ -311,8 +336,14 @@ input[type=file]{display:none;}
     <div class="settingswrap" id="settingsWrap"></div>
   </div>
 
+  <div class="view" id="view-calendar">
+    <div class="calhead"><div class="calhead-title">Calendar</div></div>
+    <div class="calbody" id="calendarBody"></div>
+  </div>
+
   <nav class="tabbar">
     <button class="tabbtn active" data-view="leads" onclick="switchView('leads')"><span class="ic">🏠</span><span class="lb">Leads</span></button>
+    <button class="tabbtn" data-view="calendar" onclick="switchView('calendar')"><span class="ic">📅</span><span class="lb">Calendar</span></button>
     <button class="tabbtn" data-view="stats" onclick="switchView('stats')"><span class="ic">📊</span><span class="lb">Stats</span></button>
     <button class="tabbtn" data-view="settings" onclick="switchView('settings')"><span class="ic">⚙️</span><span class="lb">Backup</span></button>
   </nav>
@@ -374,6 +405,30 @@ input[type=file]{display:none;}
     <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="elNotes"></textarea></div>
     <button class="sheet-save" onclick="submitEditLead()">Save Changes</button>
     <button class="sheet-cancel" onclick="closeEditLead()">Cancel</button>
+  </div>
+</div>
+
+<!-- SCHEDULE / EDIT MEETING SHEET -->
+<div class="sheet-scrim" id="scheduleMeetingScrim" onclick="closeScheduleMeeting()"></div>
+<div class="sheet" id="scheduleMeetingSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="smTitle">Schedule Meeting</div>
+  <div class="sheet-body">
+    <div class="fg"><label class="fl">Brand *</label>
+      <select class="fi" id="smBrand" onchange="onSmBrandChange()"></select>
+    </div>
+    <div class="fg"><label class="fl">Date *</label><input class="fi" id="smDate" type="date"></div>
+    <div class="rowbtns">
+      <div class="fg"><label class="fl">Start Time *</label><input class="fi" id="smStart" type="time" onchange="onSmStartChange()"></div>
+      <div class="fg"><label class="fl">End Time *</label><input class="fi" id="smEnd" type="time"></div>
+    </div>
+    <div class="fg"><label class="fl">Location</label><input class="fi" id="smLocation" placeholder="e.g. Almaza branch"></div>
+    <div class="fg"><label class="fl">Notes</label><textarea class="fi" id="smNotes"></textarea></div>
+    <button class="sheet-save" onclick="submitScheduleMeeting()">Save Meeting</button>
+    <div class="miniaction" id="smDeleteWrap" style="display:none;">
+      <button class="danger" onclick="deleteMeeting(smEditingId)">Delete Meeting</button>
+    </div>
+    <button class="sheet-cancel" onclick="closeScheduleMeeting()">Cancel</button>
   </div>
 </div>
 
@@ -441,7 +496,7 @@ input[type=file]{display:none;}
 <script>
 // ───────────────────────────── STORAGE ─────────────────────────────
 const STORE_KEY = 'fama_leads_v1';
-let data = { leads: [], settings: { dailyTarget: 50 }, lastBackupAt: null };
+let data = { leads: [], meetings: [], settings: { dailyTarget: 50 }, lastBackupAt: null };
 
 const PACKAGES = [
   { id: 'starter_7500_3mo', label: '7,500 EGP — 3 Months Upfront', amount: 7500 },
@@ -456,6 +511,22 @@ function fmtDateTime(iso){
   if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' · ' + d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtTime12(hhmm){
+  if (!hhmm) return '—';
+  const [h,m] = hhmm.split(':').map(Number);
+  const d = new Date(); d.setHours(h,m,0,0);
+  return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+}
+function fmtTimeRange12(start,end){
+  return end ? `${fmtTime12(start)} – ${fmtTime12(end)}` : fmtTime12(start);
+}
+function toDateStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStr(){ return toDateStr(new Date()); }
+function tomorrowStr(){ const d = new Date(); d.setDate(d.getDate()+1); return toDateStr(d); }
+function fmtCalDate(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
 }
 function initials(str){
   return (str || '').trim().split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase() || '?';
@@ -499,6 +570,7 @@ function load(){
   try { data = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
   catch { data = {}; }
   if (!Array.isArray(data.leads)) data.leads = [];
+  if (!Array.isArray(data.meetings)) data.meetings = [];
   if (!data.settings || typeof data.settings !== 'object') data.settings = {};
   if (typeof data.settings.dailyTarget !== 'number' || data.settings.dailyTarget <= 0) data.settings.dailyTarget = 50;
   if (!('lastBackupAt' in data)) data.lastBackupAt = null;
@@ -592,6 +664,7 @@ function switchView(v){
   if (v === 'leads') renderLeadList();
   if (v === 'stats') renderStats();
   if (v === 'settings') renderSettings();
+  if (v === 'calendar') renderCalendar();
 }
 
 function renderProgressBar(labelId, fillId){
@@ -602,6 +675,173 @@ function renderProgressBar(labelId, fillId){
   const fill = document.getElementById(fillId);
   if (lbl) lbl.innerHTML = `Today's Goal <b>${count} / ${target}</b>`;
   if (fill) { fill.style.width = pct + '%'; fill.classList.toggle('hit', count >= target); }
+}
+
+// ───────────────────────────── CALENDAR ─────────────────────────────
+let calViewDate = new Date();          // month currently shown in the grid
+let selectedCalDate = todayStr();      // date selected in the grid
+let smEditingId = null;                // meeting id currently being edited, or null when creating
+
+function meetingsOn(dateStr){
+  return data.meetings.filter(m => m.date === dateStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
+}
+
+function renderCalendar(){
+  const wrap = document.getElementById('calendarBody');
+  const y = calViewDate.getFullYear(), m = calViewDate.getMonth();
+  const monthLabel = calViewDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const startOffset = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const daysInPrevMonth = new Date(y, m, 0).getDate();
+  const meetingDates = new Set(data.meetings.map(mt => mt.date));
+
+  let cells = '';
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  for (let i = 0; i < totalCells; i++){
+    const dayNum = i - startOffset + 1;
+    let cellDate, otherMonth = false;
+    if (dayNum < 1){ cellDate = new Date(y, m-1, daysInPrevMonth + dayNum); otherMonth = true; }
+    else if (dayNum > daysInMonth){ cellDate = new Date(y, m+1, dayNum - daysInMonth); otherMonth = true; }
+    else { cellDate = new Date(y, m, dayNum); }
+    const ds = toDateStr(cellDate);
+    const isToday = ds === todayStr();
+    const isSelected = ds === selectedCalDate;
+    const hasMeeting = meetingDates.has(ds);
+    cells += `<div class="cal-day ${otherMonth?'other-month':''} ${isToday?'today':''} ${isSelected?'selected':''}" onclick="selectCalDate('${ds}')">
+      <span>${cellDate.getDate()}</span>
+      ${hasMeeting ? '<span class="cal-day-dot"></span>' : ''}
+    </div>`;
+  }
+  const weekdays = ['S','M','T','W','T','F','S'].map(w => `<div class="cal-weekday">${w}</div>`).join('');
+
+  const todayMeetings = meetingsOn(todayStr());
+  const tomorrowMeetings = meetingsOn(tomorrowStr());
+  const showSelectedSection = selectedCalDate !== todayStr() && selectedCalDate !== tomorrowStr();
+  const selectedMeetings = showSelectedSection ? meetingsOn(selectedCalDate) : [];
+
+  wrap.innerHTML = `
+    <div class="cal-nav">
+      <button class="cal-navbtn" onclick="calShiftMonth(-1)">‹</button>
+      <div class="cal-navlabel">${monthLabel}</div>
+      <button class="cal-navbtn" onclick="calShiftMonth(1)">›</button>
+    </div>
+    <div class="cal-grid">${weekdays}${cells}</div>
+
+    <div class="section-label">Today's Meetings</div>
+    ${renderMeetingList(todayMeetings, 'today')}
+
+    <div class="section-label">Tomorrow — Confirm</div>
+    ${renderMeetingList(tomorrowMeetings, 'tomorrow')}
+
+    ${showSelectedSection ? `
+      <div class="section-label">${fmtCalDate(selectedCalDate)}</div>
+      ${renderMeetingList(selectedMeetings, 'selected')}
+    ` : ''}
+
+    <button class="mtg-addbtn" onclick="openScheduleMeeting(selectedCalDate)">+ Schedule Meeting</button>
+  `;
+}
+
+function renderMeetingList(meetings, mode){
+  if (!meetings.length){
+    const msgs = { today: 'No meetings today.', tomorrow: 'Nothing to confirm.', selected: 'No meetings on this day.' };
+    return `<div class="empty-state" style="padding:26px 20px;"><div class="empty-state-body">${msgs[mode]}</div></div>`;
+  }
+  const STATUS_BADGE = { confirmed: 'badge-dm', cancelled: 'badge-dead', done: 'badge-closed', scheduled: 'badge-new' };
+  return meetings.map(mt => {
+    const rightHtml = (mode === 'tomorrow' && mt.status !== 'confirmed')
+      ? `<button class="mtg-confirmbtn" onclick="event.stopPropagation();confirmMeeting('${mt.id}')">Confirm</button>`
+      : `<span class="badge ${STATUS_BADGE[mt.status] || 'badge-new'}">${mt.status}</span>`;
+    return `<div class="mtg-row" onclick="openScheduleMeeting(null,'${mt.id}')">
+      <div class="mtg-row-main">
+        <div class="mtg-row-brand">${esc(mt.brand)}</div>
+        <div class="mtg-row-loc">${esc(mt.location || 'No location set')}</div>
+        <div class="mtg-row-time">${fmtTimeRange12(mt.startTime, mt.endTime)}</div>
+      </div>
+      <div class="mtg-row-right">${rightHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectCalDate(ds){ selectedCalDate = ds; renderCalendar(); }
+function calShiftMonth(delta){ calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth()+delta, 1); renderCalendar(); }
+
+// ───────────────────────────── SCHEDULE MEETING ─────────────────────────────
+function openScheduleMeeting(dateStr, meetingId){
+  smEditingId = meetingId || null;
+  const sel = document.getElementById('smBrand');
+  sel.innerHTML = data.leads.filter(l => !l.dead).map(l => `<option value="${l.id}">${esc(l.brand)}</option>`).join('') || '<option value="">No active leads yet</option>';
+
+  const existing = meetingId ? data.meetings.find(m => m.id === meetingId) : null;
+  document.getElementById('smTitle').textContent = existing ? 'Edit Meeting' : 'Schedule Meeting';
+  document.getElementById('smDeleteWrap').style.display = existing ? 'flex' : 'none';
+
+  if (existing){
+    sel.value = existing.leadId;
+    document.getElementById('smDate').value = existing.date;
+    document.getElementById('smStart').value = existing.startTime;
+    document.getElementById('smEnd').value = existing.endTime;
+    document.getElementById('smLocation').value = existing.location || '';
+    document.getElementById('smNotes').value = existing.notes || '';
+  } else {
+    document.getElementById('smDate').value = dateStr || selectedCalDate;
+    document.getElementById('smStart').value = '';
+    document.getElementById('smEnd').value = '';
+    document.getElementById('smNotes').value = '';
+    onSmBrandChange();
+  }
+  document.getElementById('scheduleMeetingScrim').classList.add('open');
+  document.getElementById('scheduleMeetingSheet').classList.add('open');
+}
+function closeScheduleMeeting(){
+  document.getElementById('scheduleMeetingScrim').classList.remove('open');
+  document.getElementById('scheduleMeetingSheet').classList.remove('open');
+}
+function onSmBrandChange(){
+  const lead = data.leads.find(l => l.id === document.getElementById('smBrand').value);
+  document.getElementById('smLocation').value = lead ? (lead.area || '') : '';
+}
+function onSmStartChange(){
+  const endEl = document.getElementById('smEnd');
+  if (endEl.value) return;
+  const start = document.getElementById('smStart').value;
+  if (!start) return;
+  const [h,mi] = start.split(':').map(Number);
+  const d = new Date(); d.setHours(h+1, mi, 0, 0);
+  endEl.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function submitScheduleMeeting(){
+  const leadId = document.getElementById('smBrand').value;
+  const lead = data.leads.find(l => l.id === leadId);
+  if (!lead) return;
+  const date = document.getElementById('smDate').value;
+  const startTime = document.getElementById('smStart').value;
+  const endTime = document.getElementById('smEnd').value;
+  if (!date || !startTime || !endTime) return;
+  const location = document.getElementById('smLocation').value.trim();
+  const notes = document.getElementById('smNotes').value.trim();
+
+  if (smEditingId){
+    const mt = data.meetings.find(m => m.id === smEditingId);
+    if (mt) Object.assign(mt, { leadId, brand: lead.brand, location, date, startTime, endTime, notes });
+  } else {
+    data.meetings.push({ id: uid(), leadId, brand: lead.brand, location, date, startTime, endTime, notes, status: 'scheduled', createdAt: nowISO() });
+  }
+  save();
+  closeScheduleMeeting();
+  renderCalendar();
+}
+function confirmMeeting(id){
+  const mt = data.meetings.find(m => m.id === id); if (!mt) return;
+  mt.status = 'confirmed';
+  save();
+  renderCalendar();
+}
+function deleteMeeting(id){
+  data.meetings = data.meetings.filter(m => m.id !== id);
+  save();
+  closeScheduleMeeting();
+  renderCalendar();
 }
 
 // ───────────────────────────── LEAD LIST ─────────────────────────────
@@ -1262,8 +1502,14 @@ document.getElementById('importFile').addEventListener('change', function(){
       const existingIds = new Set(data.leads.map(l => l.id));
       let added = 0;
       incomingLeads.forEach(l => { if (!existingIds.has(l.id)) { data.leads.push(l); added++; } });
+
+      const incomingMeetings = Array.isArray(incoming.meetings) ? incoming.meetings : [];
+      const existingMeetingIds = new Set(data.meetings.map(m => m.id));
+      let meetingsAdded = 0;
+      incomingMeetings.forEach(mt => { if (!existingMeetingIds.has(mt.id)) { data.meetings.push(mt); meetingsAdded++; } });
+
       save();
-      alert(`Imported ${added} new lead${added!==1?'s':''}. ${incomingLeads.length - added} already existed and were skipped.`);
+      alert(`Imported ${added} new lead${added!==1?'s':''} and ${meetingsAdded} new meeting${meetingsAdded!==1?'s':''}. ${incomingLeads.length - added} lead(s) already existed and were skipped.`);
       renderLeadList();
     } catch (e) {
       alert('Could not read that file — make sure it\'s a Fama Leads export.');
