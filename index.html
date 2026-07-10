@@ -576,12 +576,20 @@ function saveContactToPhone(){
     'END:VCARD',
     ''
   ].filter(Boolean).join('\r\n');
+  // A data: URI navigation is handed off to Contacts by full Safari, but the
+  // stripped-down WKWebView an installed home-screen PWA runs in doesn't do that
+  // handoff — it just tries to render the URI as a blank page. A Blob + download
+  // attribute goes through iOS's normal file-download pipeline instead, which
+  // does get handed off correctly even in standalone/installed mode.
+  const blob = new Blob([vcard], { type: 'text/vcard' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = 'data:text/vcard;charset=utf-8,' + encodeURIComponent(vcard);
-  a.target = '_blank';
+  a.href = url;
+  a.download = `${(n.name || 'contact').replace(/[\\/:*?"<>|]/g,'')}.vcf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 // migrate a lead from the old flat `chain` array to the contact tree (`root` + nested `children`)
