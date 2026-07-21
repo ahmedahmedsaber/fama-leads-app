@@ -95,6 +95,7 @@ input,textarea,select{font-size:16px;} /* prevent iOS auto-zoom */
 .badge-closed{background:var(--violet-bg);color:var(--violet);}
 .badge-slate{background:rgba(138,160,200,.15);color:var(--slate);}
 .badge-orange{background:rgba(255,138,92,.15);color:var(--orange);}
+.badge-cyan{background:rgba(106,212,255,.15);color:var(--cyan);}
 .leadcard-days{font-size:10.5px;color:var(--muted2);margin-top:6px;}
 .empty-state{text-align:center;padding:70px 30px;color:var(--muted);}
 .empty-state-emoji{font-size:44px;margin-bottom:10px;}
@@ -271,6 +272,9 @@ input[type=file]{display:none;}
 .calhead::before{content:'';position:absolute;top:-70px;right:-50px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle, rgba(120,170,255,.45), transparent 70%);filter:blur(6px);pointer-events:none;}
 .calhead-title{position:relative;font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;}
 .calbody{padding:16px 14px calc(90px + var(--safe-b));}
+.fu-sectiontitle{display:flex;align-items:center;justify-content:space-between;margin:20px 0 9px;}
+.fu-sectiontitle:first-child{margin-top:0;}
+.fu-count{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;background:var(--card);border:1px solid var(--card-border);border-radius:999px;padding:3px 12px;color:var(--ink);}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
 .cal-navbtn{width:34px;height:34px;border-radius:11px;background:var(--card);border:1px solid var(--card-border);color:var(--ink);font-size:16px;display:grid;place-items:center;}
 .cal-navlabel{font-size:15px;font-weight:800;color:var(--ink);font-family:'Space Grotesk',sans-serif;}
@@ -317,6 +321,11 @@ input[type=file]{display:none;}
     <div class="leadlist" id="leadListWrap"></div>
   </div>
 
+  <div class="view" id="view-followups">
+    <div class="calhead"><div class="calhead-title">Follow-Ups</div></div>
+    <div class="calbody" id="followupsBody"></div>
+  </div>
+
   <div class="view" id="view-stats">
     <div class="statshead">
       <div class="statshead-row">
@@ -348,6 +357,7 @@ input[type=file]{display:none;}
 
   <nav class="tabbar">
     <button class="tabbtn active" data-view="leads" onclick="switchView('leads')"><span class="ic">🏠</span><span class="lb">Leads</span></button>
+    <button class="tabbtn" data-view="followups" onclick="switchView('followups')"><span class="ic">🔔</span><span class="lb">Follow-Ups</span></button>
     <button class="tabbtn" data-view="calendar" onclick="switchView('calendar')"><span class="ic">📅</span><span class="lb">Calendar</span></button>
     <button class="tabbtn" data-view="stats" onclick="switchView('stats')"><span class="ic">📊</span><span class="lb">Stats</span></button>
     <button class="tabbtn" data-view="settings" onclick="switchView('settings')"><span class="ic">⚙️</span><span class="lb">Backup</span></button>
@@ -648,6 +658,7 @@ const NODE_OUTCOME_META = {
   reached_admin:  { label: 'Reached the Administration',      cls: 'badge-dm' },
   no_details:     { label: "Doesn't Have Further Details",    cls: 'badge-slate' },
   will_get_back:  { label: 'Will Get Back If Interested',     cls: 'badge-progress' },
+  awaiting_whatsapp: { label: 'Sending Contact via WhatsApp', cls: 'badge-cyan' },
 };
 
 // ───────────────────────────── TREE HELPERS ─────────────────────────────
@@ -736,6 +747,7 @@ function switchView(v){
   if (v === 'stats') renderStats();
   if (v === 'settings') renderSettings();
   if (v === 'calendar') renderCalendar();
+  if (v === 'followups') renderFollowUps();
 }
 
 function renderProgressBar(labelId, fillId){
@@ -1269,6 +1281,7 @@ function renderNodeSheet(){
       <button class="ocbtn ok" onclick="logNodeOutcome('reached_admin')"><span class="ic">🏢</span> Reached the Administration</button>
       <button class="ocbtn warn" onclick="logNodeOutcome('callback')"><span class="ic">🔁</span> Call Back Later</button>
       <button class="ocbtn warn" onclick="logNodeOutcome('will_get_back')"><span class="ic">⏳</span> Will Get Back If Interested</button>
+      <button class="ocbtn" onclick="logNodeOutcome('awaiting_whatsapp')"><span class="ic">📲</span> Sending Contact via WhatsApp</button>
       <button class="ocbtn" onclick="logNodeOutcome('no_answer')"><span class="ic">📵</span> No Answer</button>
       <button class="ocbtn" onclick="logNodeOutcome('wrong_number')"><span class="ic">☎️</span> Wrong Number</button>
       <button class="ocbtn" onclick="logNodeOutcome('no_details')"><span class="ic">🤷</span> Doesn't Have Further Details</button>
@@ -1480,6 +1493,74 @@ function openCallLog(){
 }
 function closeCallLog(){
   document.getElementById('callLogScreen').classList.remove('open');
+}
+
+// ───────────────────────────── FOLLOW-UPS (cross-lead) ─────────────────────────────
+function activeNonClosedLeads(){
+  return data.leads.filter(l => !l.dead && !l.closedSale);
+}
+function getNodesByOutcome(outcomeKey){
+  const out = [];
+  activeNonClosedLeads().forEach(l => {
+    if (!l.root) return;
+    flattenOrdered(l.root).forEach(n => {
+      if (n.outcome === outcomeKey) out.push({ lead: l, node: n });
+    });
+  });
+  out.sort((a,b) => new Date(b.node.loggedAt || b.node.createdAt) - new Date(a.node.loggedAt || a.node.createdAt));
+  return out;
+}
+function getNotCalledNodes(){
+  const out = [];
+  activeNonClosedLeads().forEach(l => {
+    if (!l.root) { out.push({ lead: l, node: null }); return; }
+    flattenOrdered(l.root).forEach(n => {
+      if (n.outcome === null) out.push({ lead: l, node: n });
+    });
+  });
+  out.sort((a,b) => new Date(b.node ? b.node.createdAt : b.lead.createdAt) - new Date(a.node ? a.node.createdAt : a.lead.createdAt));
+  return out;
+}
+function renderFollowUpSection(emoji, title, items, isNotCalled){
+  const rows = items.length ? items.map(it => {
+    const l = it.lead, n = it.node;
+    if (!n) {
+      return `<div class="cl-full-row" style="cursor:pointer;" onclick="openLeadDetail('${l.id}')">
+        <div class="cl-full-main">
+          <div class="cl-full-brand">${esc(l.brand)}</div>
+          <div class="cl-full-name">No contact added yet</div>
+        </div>
+        <div class="cl-full-right">
+          <span class="badge badge-new">Not Called</span>
+          <div class="cl-full-time">Added ${fmtDate(l.createdAt)}</div>
+        </div>
+      </div>`;
+    }
+    const om = isNotCalled ? { label: 'Not Called', cls: 'badge-new' } : (NODE_OUTCOME_META[n.outcome] || { label: n.outcome, cls: 'badge-new' });
+    const dateLabel = isNotCalled ? `Added ${fmtDate(n.createdAt)}` : fmtDateTime(n.loggedAt);
+    return `<div class="cl-full-row" style="cursor:pointer;" onclick="openLeadDetail('${l.id}')">
+      <div class="cl-full-main">
+        <div class="cl-full-brand">${esc(l.brand)}</div>
+        <div class="cl-full-name">${esc(n.name) || 'Unnamed'}${n.role ? ' · ' + esc(n.role) : ''}</div>
+      </div>
+      <div class="cl-full-right">
+        <span class="badge ${om.cls}">${om.label}</span>
+        <div class="cl-full-time">${dateLabel}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div style="font-size:12.5px;color:var(--muted2);padding:2px 2px 4px;">Nothing here right now.</div>`;
+  return `<div class="fu-sectiontitle"><div class="section-label" style="margin:0;">${emoji} ${title.toUpperCase()}</div><div class="fu-count">${items.length}</div></div>${rows}`;
+}
+function renderFollowUps(){
+  const whatsapp = getNodesByOutcome('awaiting_whatsapp');
+  const followUp = getNodesByOutcome('callback');
+  const willGetBack = getNodesByOutcome('will_get_back');
+  const notCalled = getNotCalledNodes();
+  document.getElementById('followupsBody').innerHTML =
+    renderFollowUpSection('📲', 'Awaiting WhatsApp Contact', whatsapp, false) +
+    renderFollowUpSection('🔁', 'Need Follow-Up', followUp, false) +
+    renderFollowUpSection('⏳', 'Waiting to Hear Back', willGetBack, false) +
+    renderFollowUpSection('📵', 'Not Called Yet', notCalled, true);
 }
 
 // ───────────────────────────── STATS (period-filtered analytics) ─────────────────────────────
