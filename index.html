@@ -78,15 +78,27 @@ input,textarea,select{font-size:16px;} /* prevent iOS auto-zoom */
 
 /* LEAD LIST */
 .leadlist{padding:12px 14px calc(90px + var(--safe-b));}
-.leadcard{background:var(--card);border:1px solid var(--card-border);border-radius:18px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;}
+.leadcard-outer{margin-bottom:10px;}
+.leadcard{background:var(--card);border:1px solid var(--card-border);border-radius:18px;padding:14px;display:flex;align-items:center;gap:12px;}
 .leadcard:active{background:rgba(255,255,255,.08);}
+.leadcard.expanded{border-bottom-left-radius:0;border-bottom-right-radius:0;}
 .lc-avatar{width:42px;height:42px;border-radius:13px;background:var(--avatar-grad);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;color:#fff;flex:0 0 42px;}
 .leadcard-main{flex:1;min-width:0;}
 .leadcard-brand{font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .leadcard-sub{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .leadcard-right{flex:0 0 auto;text-align:right;}
-.lc-chevron{flex:0 0 auto;font-size:20px;color:rgba(255,255,255,.25);}
 .lc-wabtn{flex:0 0 auto;width:32px;height:32px;border-radius:10px;background:var(--green-bg);border:1px solid var(--green-border);color:var(--green);font-size:15px;display:grid;place-items:center;}
+.lc-expandbtn{flex:0 0 auto;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.06);border:none;color:var(--muted);font-size:12px;display:grid;place-items:center;}
+.lc-expand{background:var(--card);border:1px solid var(--card-border);border-top:1px dashed rgba(255,255,255,.12);border-radius:0 0 18px 18px;padding:12px 14px 14px;margin-top:-1px;}
+.lc-notes{font-size:12.5px;color:var(--ink);line-height:1.5;}
+.lc-notes b{color:var(--muted3);font-weight:700;}
+.lc-notes-empty{color:var(--muted2);}
+.lc-contacts{margin-top:10px;}
+.lc-contact-row{padding:7px 0;border-top:1px solid rgba(255,255,255,.06);}
+.lc-contact-row:first-child{border-top:none;padding-top:0;}
+.lc-contact-name{font-size:12.5px;font-weight:700;color:var(--ink);}
+.lc-contact-note{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45;}
+.lc-contacts-empty{font-size:12.5px;color:var(--muted2);margin-top:10px;}
 .badge{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;}
 .badge-new{background:rgba(59,124,255,.15);color:var(--accent2);}
 .badge-progress{background:var(--amber-bg);color:var(--amber);}
@@ -315,6 +327,7 @@ input[type=file]{display:none;}
     <div class="searchbar"><input id="searchInput" placeholder="Search brand or contact name…" oninput="renderLeadList()"></div>
     <div class="chiprow" id="filterChips"></div>
     <div class="chiprow" id="callFilterChips"></div>
+    <div class="chiprow" id="dealFilterChips"></div>
   </div>
 
   <div class="view active" id="view-leads">
@@ -632,6 +645,7 @@ function ensureNodeDefaults(n){
 }
 function ensureLeadDefaults(l){
   if (l.closedSale === undefined) l.closedSale = null;
+  if (l.dealStatus === undefined) l.dealStatus = null;
   if (l.root) ensureNodeDefaults(l.root);
   return l;
 }
@@ -659,6 +673,14 @@ const NODE_OUTCOME_META = {
   no_details:     { label: "Doesn't Have Further Details",    cls: 'badge-slate' },
   will_get_back:  { label: 'Will Get Back If Interested',     cls: 'badge-progress' },
   awaiting_whatsapp: { label: 'Sending Contact via WhatsApp', cls: 'badge-cyan' },
+};
+
+// Manual per-brand deal/pipeline status — independent of the automatic call-tree status above.
+const DEAL_STATUS_META = {
+  follow_up:      { label: 'Follow Up',         cls: 'badge-progress', emoji: '🔁' },
+  interested:     { label: 'Interested',        cls: 'badge-dm',       emoji: '👍' },
+  in_progress:    { label: 'Still In Progress',  cls: 'badge-cyan',    emoji: '⏳' },
+  not_interested: { label: 'Not Interested',    cls: 'badge-dead',     emoji: '👎' },
 };
 
 // ───────────────────────────── TREE HELPERS ─────────────────────────────
@@ -982,6 +1004,26 @@ function renderCallFilterChips(){
 }
 function setCallFilter(k){ activeCallFilter = k; renderCallFilterChips(); renderLeadList(); }
 
+let activeDealFilter = 'all';
+const DEAL_FILTERS = [
+  { key: 'all', label: 'Any Deal Status' },
+  ...Object.keys(DEAL_STATUS_META).map(key => ({ key, label: DEAL_STATUS_META[key].label })),
+  { key: 'none', label: 'Not Tagged' },
+];
+function renderDealFilterChips(){
+  document.getElementById('dealFilterChips').innerHTML = DEAL_FILTERS.map(f => `
+    <button class="fchip${activeDealFilter === f.key ? ' active' : ''}" onclick="setDealFilter('${f.key}')">${f.label}</button>
+  `).join('');
+}
+function setDealFilter(k){ activeDealFilter = k; renderDealFilterChips(); renderLeadList(); }
+
+let expandedLeadIds = new Set();
+function toggleLeadExpand(id, ev){
+  if (ev) ev.stopPropagation();
+  if (expandedLeadIds.has(id)) expandedLeadIds.delete(id); else expandedLeadIds.add(id);
+  renderLeadList();
+}
+
 function renderLeadList(){
   document.getElementById('leadCount').textContent = `${data.leads.filter(l=>!l.dead).length} lead${data.leads.filter(l=>!l.dead).length!==1?'s':''}`;
   renderProgressBar('progressLabel', 'progressFill');
@@ -991,6 +1033,8 @@ function renderLeadList(){
   if (activeFilter !== 'all') list = list.filter(l => leadStatus(l) === activeFilter);
   if (activeCallFilter === 'none') list = list.filter(l => lastCallOutcome(l) === null);
   else if (activeCallFilter !== 'all') list = list.filter(l => lastCallOutcome(l) === activeCallFilter);
+  if (activeDealFilter === 'none') list = list.filter(l => !l.dealStatus);
+  else if (activeDealFilter !== 'all') list = list.filter(l => l.dealStatus === activeDealFilter);
   if (q) list = list.filter(l => {
     const names = l.root ? flattenOrdered(l.root).map(n => n.name) : [];
     const hay = [l.brand, l.area, ...names].join(' ').toLowerCase();
@@ -1025,18 +1069,36 @@ function renderLeadList(){
     const waBtn = (waContact && waContact.phone)
       ? `<button class="lc-wabtn" onclick="event.stopPropagation();sendBrandDetails('${l.id}')" title="Send brand details via WhatsApp">💬</button>`
       : '';
-    return `<div class="leadcard" onclick="openLeadDetail('${l.id}')">
-      <div class="lc-avatar">${esc(initials(l.brand))}</div>
-      <div class="leadcard-main">
-        <div class="leadcard-brand">${esc(l.brand)}</div>
-        <div class="leadcard-sub">${esc(who) || '—'}</div>
+    const dealMeta = l.dealStatus ? DEAL_STATUS_META[l.dealStatus] : null;
+    const expanded = expandedLeadIds.has(l.id);
+    const contacts = l.root ? flattenOrdered(l.root) : [];
+    const expandHtml = expanded ? `
+      <div class="lc-expand" onclick="event.stopPropagation();">
+        ${l.notes ? `<div class="lc-notes"><b>Notes:</b> ${esc(l.notes)}</div>` : `<div class="lc-notes lc-notes-empty">No notes yet.</div>`}
+        ${contacts.length ? `<div class="lc-contacts">
+          ${contacts.map(n => `
+            <div class="lc-contact-row">
+              <div class="lc-contact-name">${esc(n.name) || 'Unnamed'}${n.role ? ' · ' + esc(n.role) : ''}${n.isTarget ? ' ⭐' : ''}</div>
+              ${n.note ? `<div class="lc-contact-note">${esc(n.note)}</div>` : ''}
+            </div>`).join('')}
+        </div>` : `<div class="lc-contacts-empty">No contacts added yet.</div>`}
+      </div>` : '';
+    return `<div class="leadcard-outer">
+      <div class="leadcard${expanded ? ' expanded' : ''}" onclick="openLeadDetail('${l.id}')">
+        <div class="lc-avatar">${esc(initials(l.brand))}</div>
+        <div class="leadcard-main">
+          <div class="leadcard-brand">${esc(l.brand)}</div>
+          <div class="leadcard-sub">${esc(who) || '—'}</div>
+        </div>
+        <div class="leadcard-right">
+          <span class="badge ${meta.cls}">${meta.label}</span>
+          ${dealMeta ? `<span class="badge ${dealMeta.cls}" style="display:block;margin-top:4px;">${dealMeta.emoji} ${dealMeta.label}</span>` : ''}
+          <div class="leadcard-days">${d === 0 ? 'today' : d === 1 ? '1d ago' : d + 'd ago'}</div>
+        </div>
+        ${waBtn}
+        <button class="lc-expandbtn" onclick="toggleLeadExpand('${l.id}', event)" title="Show notes & contacts">${expanded ? '▴' : '▾'}</button>
       </div>
-      <div class="leadcard-right">
-        <span class="badge ${meta.cls}">${meta.label}</span>
-        <div class="leadcard-days">${d === 0 ? 'today' : d === 1 ? '1d ago' : d + 'd ago'}</div>
-      </div>
-      ${waBtn}
-      <div class="lc-chevron">›</div>
+      ${expandHtml}
     </div>`;
   }).join('');
 }
@@ -1074,7 +1136,7 @@ function submitAddLead(){
   if (name || phone || role) {
     root = { id: uid(), name, role, phone, note: '', outcome: null, loggedAt: null, isTarget: false, createdAt: nowISO(), children: [], callLog: [] };
   }
-  const lead = { id: uid(), brand, area, notes: '', createdAt: nowISO(), dead: false, deadReason: '', root, closedSale: null };
+  const lead = { id: uid(), brand, area, notes: '', createdAt: nowISO(), dead: false, deadReason: '', root, closedSale: null, dealStatus: null };
   data.leads.unshift(lead);
   save();
   closeAddLead();
@@ -1194,6 +1256,17 @@ function renderLeadDetail(){
       </div>`).join('') : `<div class="empty-state" style="padding:22px 20px;"><div class="empty-state-body">No meetings scheduled yet.</div></div>`}
     <button class="mtg-addbtn" onclick="openScheduleMeeting(null,null,'${l.id}')">+ Schedule Meeting</button>`;
 
+  const dealStatusHtml = `
+    <div class="section-label">Deal Status</div>
+    <div class="outcomelist">
+      ${Object.keys(DEAL_STATUS_META).map(key => {
+        const meta = DEAL_STATUS_META[key];
+        const active = l.dealStatus === key;
+        const tone = key === 'interested' ? 'ok' : key === 'not_interested' ? 'bad' : 'warn';
+        return `<button class="ocbtn${active ? ' ' + tone : ''}" onclick="setDealStatus('${key}')"><span class="ic">${meta.emoji}</span> ${meta.label}${active ? ' ✓' : ''}</button>`;
+      }).join('')}
+    </div>`;
+
   const notesHtml = `
     <div class="section-label">Notes</div>
     <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:13px 15px;font-size:13.5px;color:${l.notes ? 'var(--ink)' : 'var(--muted2)'};line-height:1.55;">${esc(l.notes) || 'No notes yet — tap ✎ to add some.'}</div>`;
@@ -1206,9 +1279,16 @@ function renderLeadDetail(){
       <button onclick="deleteLead()" style="color:var(--red);">🗑 Delete</button>
     </div>`;
 
-  document.getElementById('ldBody').innerHTML = bannerHtml + treeHtml + meetingsHtml + notesHtml + miniActions;
+  document.getElementById('ldBody').innerHTML = bannerHtml + dealStatusHtml + treeHtml + meetingsHtml + notesHtml + miniActions;
 }
 
+function setDealStatus(v){
+  const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
+  l.dealStatus = (l.dealStatus === v) ? null : v;
+  save();
+  renderLeadDetail();
+  renderLeadList();
+}
 function markLeadDead(){
   const l = data.leads.find(x => x.id === selLeadId); if (!l) return;
   const reason = prompt('Reason (optional):') || '';
@@ -1606,6 +1686,11 @@ function renderStats(){
   const totalClosedAllTime = data.leads.filter(l => l.closedSale).length;
   const totalRevenueAllTime = data.leads.reduce((sum, l) => sum + (l.closedSale ? l.closedSale.amount : 0), 0);
 
+  const dealCounts = {};
+  Object.keys(DEAL_STATUS_META).forEach(k => dealCounts[k] = 0);
+  let dealNotSet = 0;
+  data.leads.filter(l => !l.dead).forEach(l => { l.dealStatus ? dealCounts[l.dealStatus]++ : dealNotSet++; });
+
   const tiles = [
     { label: 'Leads Added', val: leadsInPeriod.length, sub: periodLabel },
     { label: 'Reached DM', val: dmReachedInPeriod, sub: periodLabel, tint: 'green' },
@@ -1631,6 +1716,15 @@ function renderStats(){
       <div class="stattile"><div class="stattile-label">Total Leads</div><div class="stattile-val sg">${data.leads.length}</div><div class="stattile-sub">all time · ${data.leads.filter(l=>l.dead).length} dead</div></div>
       <div class="stattile"><div class="stattile-label">Active Leads</div><div class="stattile-val sg">${alive.length}</div><div class="stattile-sub">not marked dead</div></div>
     </div>
+    <div class="section-label">Deal Status Breakdown</div>
+    <div class="statgrid">
+      ${Object.keys(DEAL_STATUS_META).map(key => {
+        const m = DEAL_STATUS_META[key];
+        const pct = alive.length ? Math.round((dealCounts[key] / alive.length) * 100) : 0;
+        return `<div class="stattile"><div class="stattile-label">${m.emoji} ${m.label}</div><div class="stattile-val sg">${dealCounts[key]}</div><div class="stattile-sub">${pct}% of active leads</div></div>`;
+      }).join('')}
+    </div>
+    <div class="stattile wide" style="margin-bottom:11px;"><div class="stattile-label">Not Yet Tagged</div><div class="stattile-val sg">${dealNotSet}</div><div class="stattile-sub">active leads with no deal status set</div></div>
     <div class="ratecard">
       <div class="ratecard-label">Productive Call Rate</div>
       <div class="ratecard-val green sg">${productiveRate}%</div>
@@ -1781,6 +1875,7 @@ if (window.visualViewport) {
 load();
 renderFilterChips();
 renderCallFilterChips();
+renderDealFilterChips();
 renderLeadList();
 
 if ('serviceWorker' in navigator) {
